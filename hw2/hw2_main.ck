@@ -541,9 +541,6 @@ class Bird extends GGen {
     Have birds land on the wire and "sing" along with the music
     */
 
-    // modes
-    int BIRD_TYPE;
-
     // graphics objects
     GCube body;
     GCube leftWing;
@@ -566,6 +563,7 @@ class Bird extends GGen {
     float shiftY;
     float shiftZ;
     vec2 path[];
+    vec2 currPathGraphics[0];
     GLines pathGraphics;
 
     fun @construct(float flapPeriod, float moveSpeed, float shiftY, float shiftZ, vec2 movementPath[]) {
@@ -658,25 +656,15 @@ class Bird extends GGen {
         this --> GG.scene();
     }
 
-    fun drawPath(int end, float shiftY) {
-        // TODO: this is inefficient as hell
-        vec2 currPathGraphics[end];
-
-        for (int idx; idx < end; idx++) {
-            @(path[idx].x, path[idx].y + shiftY) => currPathGraphics[idx];
-        }
+    fun drawPath(vec2 currPathGraphics[], int idx, float shiftY) {
+        @(path[idx].x, path[idx].y + shiftY) => vec2 pos;
+        currPathGraphics << pos;
 
         currPathGraphics => pathGraphics.positions;
     }
 
-    fun removePath(int start, int end) {
-        // TODO: this is inefficient as hell
-        vec2 currPathGraphics[end - start];
-
-        for (start => int idx; idx < end; idx++) {
-            path[idx] => currPathGraphics[idx - start];
-        }
-
+    fun removePath(vec2 currPathGraphics[], int start, int end) {
+        currPathGraphics.popFront();
         currPathGraphics => pathGraphics.positions;
     }
 
@@ -737,7 +725,7 @@ class FlyingBird extends Bird {
                     1::ms => now;
                 }
             }
-            this.drawPath(idx, 0.);
+            this.drawPath(currPathGraphics, idx, 0.);
         }
 
         // Remove the bird from the scene
@@ -745,7 +733,7 @@ class FlyingBird extends Bird {
 
         // Fade out path
         for (int idx; idx < path.size(); idx++) {
-            this.removePath(idx, path.size());
+            this.removePath(currPathGraphics, idx, path.size());
             1::ms => now;
         }
         pathGraphics --< GG.scene();
@@ -787,7 +775,7 @@ class SingingBird extends Bird {
                     1::ms => now;
                 }
             }
-            this.drawPath(idx, 0);
+            this.drawPath(currPathGraphics, idx, 0);
         }
 
         this.posY() => float startY;
@@ -807,8 +795,7 @@ class SingingBird extends Bird {
                 this.posY() + stepY => this.posY;
                 1::ms => now;
             }
-            <<< "Curr Y: ", this.posY(), "Step Size: ", yStepSize >>>;
-            this.drawPath(idx, yStepSize);
+            this.drawPath(currPathGraphics, idx, yStepSize);
         }
 
         while (true) {
