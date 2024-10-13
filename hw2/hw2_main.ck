@@ -659,13 +659,6 @@ class Bird extends GGen {
         this --> GG.scene();
     }
 
-    fun void animate() {
-        spork ~ animateWing();
-        spork ~ animateMouth();
-        // spork ~ animateMovement();
-        spork ~ animateLanding(100, 300);
-    }
-
     fun drawPath(int end, float shiftY) {
         // TODO: this is inefficient as hell
         vec2 currPathGraphics[end];
@@ -688,6 +681,42 @@ class Bird extends GGen {
         currPathGraphics => pathGraphics.positions;
     }
 
+    fun void animateWing() {
+        TriOsc wingAnimator(1.) => blackhole;
+        while (true) {
+            if (inFlight == 1) {
+                Std.scalef(wingAnimator.last(), -1., 1., -Math.PI / 4, Math.PI / 4) => float rotation;
+                -rotation => leftWing.rotX;
+                rotation => rightWing.rotX;
+            }
+            GG.nextFrame() => now;
+        }
+    }
+
+    fun void animateMouth() {
+        TriOsc mouthAnimator(1.) => blackhole;
+        while (true) {
+            if (mouthMoving == 1) {
+                Std.scalef(mouthAnimator.last(), -1., 1., 0., Math.PI / 4) => float rotation;
+                rotation => beakTop.rotZ;
+                -rotation => beakBottom.rotZ;
+            }
+            GG.nextFrame() => now;
+        }
+    }
+}
+
+
+class FlyingBird extends Bird {
+    fun @construct(float flapPeriod, float moveSpeed, float shiftY, float shiftZ, vec2 movementPath[]) {
+        Bird(flapPeriod, moveSpeed, shiftY, shiftZ, movementPath);
+    }
+
+    fun void animate() {
+        spork ~ animateWing();
+        spork ~ animateMouth();
+        spork ~ animateMovement();
+    }
 
     fun void animateMovement() {
         for (int idx; idx < path.size(); idx++) {
@@ -723,8 +752,21 @@ class Bird extends GGen {
 
         me.exit();
     }
+}
 
-    fun void animateLanding(int startIdx, int stopIdx) {
+
+class SingingBird extends Bird {
+    fun @construct(float flapPeriod, float moveSpeed, float shiftY, float shiftZ, vec2 movementPath[]) {
+        Bird(flapPeriod, moveSpeed, shiftY, shiftZ, movementPath);
+    }
+
+    fun void animate() {
+        spork ~ animateWing();
+        spork ~ animateMouth();
+        spork ~ animateMovement(100, 300);
+    }
+
+    fun void animateMovement(int startIdx, int stopIdx) {
 
         for (int idx; idx < startIdx; idx++) {
             path[idx] => vec2 pos;
@@ -772,30 +814,6 @@ class Bird extends GGen {
             GG.nextFrame() => now;
         }
     }
-
-    fun void animateWing() {
-        TriOsc wingAnimator(1.) => blackhole;
-        while (true) {
-            if (inFlight == 1) {
-                Std.scalef(wingAnimator.last(), -1., 1., -Math.PI / 4, Math.PI / 4) => float rotation;
-                -rotation => leftWing.rotX;
-                rotation => rightWing.rotX;
-            }
-            GG.nextFrame() => now;
-        }
-    }
-
-    fun void animateMouth() {
-        TriOsc mouthAnimator(1.) => blackhole;
-        while (true) {
-            if (mouthMoving == 1) {
-                Std.scalef(mouthAnimator.last(), -1., 1., 0., Math.PI / 4) => float rotation;
-                rotation => beakTop.rotZ;
-                -rotation => beakBottom.rotZ;
-            }
-            GG.nextFrame() => now;
-        }
-    }
 }
 
 
@@ -822,7 +840,7 @@ class BirdGenerator {
 
             // create new bird
             dsp.getLastNthSpectrum(0) @=> vec2 spectrum[];
-            Bird bird(.5, 10., shiftY, shiftZ, spectrum);
+            FlyingBird bird(.5, 10., shiftY, shiftZ, spectrum);
 
             Math.random2f(0.2, 0.6) => float scaleAmt;
             @(scaleAmt, scaleAmt, scaleAmt) => bird.sca;
@@ -848,8 +866,7 @@ class BirdGenerator {
 
             // create new bird
             dsp.getLastNthSpectrum(0) @=> vec2 spectrum[];
-            // Bird bird(.5, 10., shiftY, shiftZ, spectrum);
-            Bird bird(.5, 10., shiftY, 0., spectrum);
+            SingingBird bird(.5, 10., shiftY, 0., spectrum);
 
             Math.random2f(0.2, 0.6) => float scaleAmt;
             @(scaleAmt, scaleAmt, scaleAmt) => bird.sca;
@@ -939,7 +956,7 @@ spork ~ sky.moon.glow(envFollower);
 
 // Bird movement shreds
 spork ~ birdGen.addFlyindBird(dsp);
-// spork ~ birdGen.addSingingBird(dsp);
+spork ~ birdGen.addSingingBird(dsp);
 
 // Audio shreds
 spork ~ playFile();
