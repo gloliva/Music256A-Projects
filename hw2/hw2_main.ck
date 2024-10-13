@@ -577,7 +577,6 @@ class Bird extends GGen {
         shiftY => this.shiftY;
         shiftZ => this.shiftZ;
         1.2 => float scaleFactor;
-        <<< "SCALE: ", scaleFactor >>>;
         scaleVectorArray(movementPath, scaleFactor, 1.);
         movementPath @=> path;
         Color.random() => vec3 birdColor;
@@ -710,6 +709,7 @@ class Bird extends GGen {
 class FlyingBird extends Bird {
     fun @construct(float flapPeriod, float moveSpeed, float shiftY, float shiftZ, vec2 movementPath[]) {
         Bird(flapPeriod, moveSpeed, shiftY, shiftZ, movementPath);
+        "Flying Bird" => this.name;
     }
 
     fun void animate() {
@@ -758,6 +758,7 @@ class FlyingBird extends Bird {
 class SingingBird extends Bird {
     fun @construct(float flapPeriod, float moveSpeed, float shiftY, float shiftZ, vec2 movementPath[]) {
         Bird(flapPeriod, moveSpeed, shiftY, shiftZ, movementPath);
+        "Singing Bird" => this.name;
     }
 
     fun void animate() {
@@ -790,9 +791,8 @@ class SingingBird extends Bird {
         }
 
         this.posY() => float startY;
-        this.posZ() => float startZ;
         stopIdx - startIdx => float numSteps;
-        0.6 - startY => float yDistance;
+        -0.51 - startY => float yDistance;
         yDistance / numSteps => float yStepSize;
 
         for (startIdx => int idx; idx < stopIdx; idx++) {
@@ -807,6 +807,7 @@ class SingingBird extends Bird {
                 this.posY() + stepY => this.posY;
                 1::ms => now;
             }
+            <<< "Curr Y: ", this.posY(), "Step Size: ", yStepSize >>>;
             this.drawPath(idx, yStepSize);
         }
 
@@ -860,20 +861,21 @@ class BirdGenerator {
 
             Convert part of the path to polar coordinates to land in a semicircle
         */
+        startDelay => now;
         while (true) {
 
             Math.random2f(-2., 5.) => float shiftY;
 
             // create new bird
             dsp.getLastNthSpectrum(0) @=> vec2 spectrum[];
-            SingingBird bird(.5, 10., shiftY, 0., spectrum);
+            SingingBird bird(.5, 10., shiftY, 1., spectrum);
 
             Math.random2f(0.2, 0.6) => float scaleAmt;
             @(scaleAmt, scaleAmt, scaleAmt) => bird.sca;
 
             // let it fly!
             bird.animate();
-            birdFrequency => now;
+            2::second => now;
         }
 
     }
@@ -916,6 +918,12 @@ class TelephonePole extends GGen {
         // Set pos
         leftPole.setPos( @(pos.x - poleOffset, pos.y, pos.z) );
         rightPole.setPos( @(pos.x + poleOffset, pos.y, pos.z) );
+
+        // names
+        "Left Pole" => leftPole.name;
+        "Right Pole" => rightPole.name;
+        "Wire" => wire.name;
+        "Telephone Pole" => this.name;
     }
 
     fun void wireMovement(vec2 waveform[]) {
