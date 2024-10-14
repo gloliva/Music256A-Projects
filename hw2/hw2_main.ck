@@ -657,15 +657,26 @@ class Bird extends GGen {
     }
 
     fun drawPath(vec2 currPathGraphics[], int idx, float shiftY) {
+        <<<"Shift Y: ", shiftY>>>;
         @(path[idx].x, path[idx].y + shiftY) => vec2 pos;
+        <<<"POS: ", pos >>>;
         currPathGraphics << pos;
 
         currPathGraphics => pathGraphics.positions;
     }
 
-    fun removePath(vec2 currPathGraphics[], int start, int end) {
+    fun removePathSegment(vec2 currPathGraphics[]) {
         currPathGraphics.popFront();
         currPathGraphics => pathGraphics.positions;
+    }
+
+    fun removePath(vec2 currPathGraphics[], dur segmentRemovalDur) {
+        currPathGraphics.size() => int end;
+        for (int idx; idx < end; idx++) {
+            this.removePathSegment(currPathGraphics);
+            segmentRemovalDur => now;
+        }
+        me.exit();
     }
 
     fun void animateWing() {
@@ -732,10 +743,11 @@ class FlyingBird extends Bird {
         this --< GG.scene();
 
         // Fade out path
-        for (int idx; idx < path.size(); idx++) {
-            this.removePath(currPathGraphics, idx, path.size());
-            1::ms => now;
-        }
+        1::ms => dur segmentRemovalDur;
+        spork ~ removePath(currPathGraphics, segmentRemovalDur);
+        me.yield();
+        segmentRemovalDur * currPathGraphics.size() => now;
+
         pathGraphics --< GG.scene();
 
         me.exit();
@@ -749,14 +761,13 @@ class SingingBird extends Bird {
         "Singing Bird" => this.name;
     }
 
-    fun void animate() {
+    fun void animate(int startLanding, int endLanding) {
         spork ~ animateWing();
         spork ~ animateMouth();
-        spork ~ animateMovement(100, 300);
+        spork ~ animateLanding(startLanding, endLanding);
     }
 
-    fun void animateMovement(int startIdx, int stopIdx) {
-
+    fun void animateLanding(int startIdx, int stopIdx) {
         for (int idx; idx < startIdx; idx++) {
             path[idx] => vec2 pos;
             if (idx == 0) {
@@ -795,12 +806,18 @@ class SingingBird extends Bird {
                 this.posY() + stepY => this.posY;
                 1::ms => now;
             }
-            this.drawPath(currPathGraphics, idx, yStepSize);
+            this.drawPath(currPathGraphics, idx, ((idx - startIdx) * yStepSize));
         }
+
+        spork ~ removePath(currPathGraphics, 1::ms);
 
         while (true) {
             GG.nextFrame() => now;
         }
+    }
+
+    fun void moveOnWire() {
+
     }
 }
 
@@ -861,8 +878,10 @@ class BirdGenerator {
             @(scaleAmt, scaleAmt, scaleAmt) => bird.sca;
 
             // let it fly!
-            bird.animate();
-            2::second => now;
+            Math.random2(100, 300) => int startLanding;
+            Math.random2(400, 750) => int endLanding;
+            bird.animate(startLanding, endLanding);
+            5::second => now;
         }
 
     }
@@ -950,7 +969,7 @@ spork ~ grass.animateGrass(dsp);
 spork ~ sky.moon.glow(envFollower);
 
 // Bird movement shreds
-spork ~ birdGen.addFlyindBird(dsp);
+spork ~ birdGen.addFlyindBird(dsp); //TODO: add back when done testing
 spork ~ birdGen.addSingingBird(dsp);
 
 // Audio shreds
