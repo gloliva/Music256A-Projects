@@ -16,6 +16,13 @@
     TODO: interpolate most animations (can I pass functions around...?)
           also normalize waves
           add bloom to sun and moon
+
+
+    More TODO: for office hours
+        - Rotation of birds when landing / taking off
+        - scale of flight path when negative Z
+        - Alpha value for graphics?
+        -
 */
 
 // Window Setup
@@ -264,10 +271,6 @@ class AudioProcessing {
            e.g. 0 returns the most recent, 1 returns the second most recent
            2 returns the third most recent, and so on
         */
-
-        // TODO: does this work now? create a copy of the list because
-        //       returning just spectrumHistory[spectrumIdx] returns a
-        //       reference (which is constantly changing...) :(
 
         if (n >= HISTORY_SIZE) {
             <<< "ERROR | Requested Spectrum: ", n, ", History Size: ", HISTORY_SIZE>>>;
@@ -762,10 +765,17 @@ class SingingBird extends Bird {
     fun void animate(int startLanding, int endLanding, int endTakeoff) {
         spork ~ animateWing();
         spork ~ animateMouth();
-        spork ~ animateLanding(startLanding, endLanding, endTakeoff);
+        spork ~ animateMovement(startLanding, endLanding, endTakeoff);
     }
 
-    fun void animateLanding(int startLanding, int endLanding, int endTakeoff) {
+    fun float calculateRotation(int startIdx, int stopIdx, float yStepSize, float numSteps) {
+        path[stopIdx].x - path[startIdx].x => float X;
+        (path[stopIdx].y + (yStepSize * (numSteps - 1))) - path[startIdx].y => float Y;
+        Math.atan2(Y, X) => float angle;
+        return angle;
+    }
+
+    fun void animateMovement(int startLanding, int endLanding, int endTakeoff) {
         startLanding => int startIdx;
         endLanding => int stopIdx;
 
@@ -775,38 +785,55 @@ class SingingBird extends Bird {
             this.drawPath(currPathGraphics, idx, 0);
         }
 
-        // Handle landing on the wire
+        // Calculate variables needed for landing
         this.posY() => float startY;
         -0.51 => float yTarget;
         stopIdx - startIdx => float numSteps;
         yTarget - startY => float yDistance;
         yDistance / numSteps => float yStepSize;
 
+        // Calculate landing rotation
+        this.calculateRotation(startIdx, stopIdx, yStepSize, numSteps) => this.rotZ;
+
+        // Handle landing on the wire
         for (startIdx => int idx; idx < stopIdx; idx++) {
             this.moveForward(idx, yStepSize);
             this.drawPath(currPathGraphics, idx, ((idx - startIdx) * yStepSize));
         }
 
+        // Reset rotation
+        0. => this.rotZ;
+
+        // Snap to wire
+        yTarget => this.posY;
+
         spork ~ removePath(currPathGraphics, 1::ms);
 
         // Waiting on the wire
-        2::second => now;
+        4::second => now;
 
-        // Taking off from the wire
+        // Starting idx is current idx on the wire, update new stoping idx
         stopIdx => startIdx;
         endTakeoff => stopIdx;
 
-        // recalculate step variables
+        // recalculate variables needed for takeoff
         yTarget => startY;
         path[stopIdx].y => yTarget;
         stopIdx - startIdx => numSteps;
         yTarget - startY => yDistance;
         yDistance / numSteps => yStepSize;
 
+        // Calculate takeoff rotation
+        this.calculateRotation(startIdx, stopIdx, yStepSize, numSteps) => this.rotZ;
+
+        // Taking off from the wire
         for (startIdx => int idx; idx < stopIdx; idx++) {
             this.moveForward(idx, yStepSize);
             this.drawPath(currPathGraphics, idx, (stopIdx - idx) * yStepSize * -1);
         }
+
+        // Reset rotation
+        0. => this.rotZ;
 
         // Flying off the screen
         for (stopIdx => int idx; idx < path.size(); idx++) {
@@ -814,7 +841,7 @@ class SingingBird extends Bird {
             this.drawPath(currPathGraphics, idx, 0);
         }
 
-        // Fade out path
+        // Fade out graphics path
         1::ms => dur segmentRemovalDur;
         spork ~ removePath(currPathGraphics, segmentRemovalDur);
         segmentRemovalDur * currPathGraphics.size() => now;
