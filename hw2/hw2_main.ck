@@ -20,9 +20,14 @@
 
     More TODO: for office hours
         - Rotation of birds when landing / taking off
+            - DONE, maybe smooth it out
         - scale of flight path when negative Z
-        - Alpha value for graphics?
-        -
+            - use screenCoordToWorldPos
+
+    IDEAS to Implement:
+        - Big birds are bass, medium birds are middle, small birds are highs
+        - Take DFT per bird, so when it "sings" the spectrum flies out of its mouth (maybe at some sampling period)
+            - have the spectrum fly out and shrink (scale down) to fade away
 */
 
 // Window Setup
