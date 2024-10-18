@@ -1,5 +1,5 @@
 /*
-    Homework 2 Milestone
+    Homework 2
 
     Birds fly around a nice green field
     So much isn't done yet :(
@@ -19,21 +19,25 @@
 
 
     More TODO: for office hours
-        - Rotation of birds when landing / taking off
-            - DONE, maybe smooth it out
         - scale of flight path when negative Z
             - use screenCoordToWorldPos
 
-    IDEAS to Implement:
-        - Big birds are bass, medium birds are middle, small birds are highs
+    TODO: IDEAS to Implement:
+        - Big birds are bass (LPF), medium birds are middle, small birds are highs (HPF)
         - Take DFT per bird, so when it "sings" the spectrum flies out of its mouth (maybe at some sampling period)
             - have the spectrum fly out and shrink (scale down) to fade away
+        - Daylight is more consenent, nightime is more disonant / minor sounds
+        - add interpolation to waves
 */
 
 // Window Setup
 GWindow.title("Sound of Flight");
 GWindow.fullscreen();
-GG.scene().camera().posZ(8.0);
+
+// Camera
+global GCamera mainCam;
+GG.scene().camera() @=> mainCam;
+mainCam.posZ(8.0);
 
 // Lighting
 GG.scene().light() @=> GLight sceneLight;
@@ -580,9 +584,14 @@ class Bird extends GGen {
         moveSpeed => this.moveSpeed;
         shiftY => this.shiftY;
         shiftZ => this.shiftZ;
-        1.2 => float scaleFactor;
-        scaleVectorArray(movementPath, scaleFactor, 1., 0., shiftY);
+
+        // Handle X movement
+        movementPath[0].x => float startingX;
+        this.calculateScaleFactor(startingX, shiftZ) * 1.3 => float scalingFactor;
+        scaleVectorArray(movementPath, scalingFactor, 1., 0., shiftY);
         movementPath @=> path;
+
+        // Colors
         Color.random() => vec3 birdColor;
 
         // Graphics rendering
@@ -633,7 +642,9 @@ class Bird extends GGen {
 
         // draw movement path
         birdColor => pathGraphics.color;
-        0.02 => pathGraphics.width;
+        Std.scalef(this.posZ(), -6, 2, 0.005, 0.04) => float linesWidth;
+        linesWidth => pathGraphics.width;
+
         shiftZ => pathGraphics.posZ;
         pathGraphics --> GG.scene();
 
@@ -658,6 +669,13 @@ class Bird extends GGen {
         beakBottom --> head;
         beakTop --> head --> this;
         this --> GG.scene();
+    }
+
+    fun float calculateScaleFactor(float startingX, float shiftZ) {
+        @(0., 0.) => vec2 screenPos;
+        mainCam.screenCoordToWorldPos(screenPos, mainCam.posZ() - shiftZ) @=> vec3 worldPos;
+        worldPos.x => float newX;
+        return newX / startingX;
     }
 
     fun drawPath(vec2 currPathGraphics[], int idx, float shiftY) {
@@ -780,6 +798,20 @@ class SingingBird extends Bird {
         return angle;
     }
 
+    fun void animateRotation(float startAngle, float stopAngle) {
+        startAngle => float currAngle;
+        100. => float numSteps;
+        ((stopAngle - startAngle) / numSteps) => float stepSize;
+
+        for (int currStep; currStep < numSteps; currStep++) {
+            currAngle + stepSize => currAngle;
+            currAngle => this.rotZ;
+            1::ms => now;
+        }
+
+        me.exit();
+    }
+
     fun void animateMovement(int startLanding, int endLanding, int endTakeoff) {
         startLanding => int startIdx;
         endLanding => int stopIdx;
@@ -798,7 +830,8 @@ class SingingBird extends Bird {
         yDistance / numSteps => float yStepSize;
 
         // Calculate landing rotation
-        this.calculateRotation(startIdx, stopIdx, yStepSize, numSteps) => this.rotZ;
+        this.calculateRotation(startIdx, stopIdx, yStepSize, numSteps) => float stopAngle;
+        spork ~ animateRotation(this.rotZ(), stopAngle);
 
         // Handle landing on the wire
         for (startIdx => int idx; idx < stopIdx; idx++) {
@@ -807,7 +840,7 @@ class SingingBird extends Bird {
         }
 
         // Reset rotation
-        0. => this.rotZ;
+        spork ~ animateRotation(this.rotZ(), 0.);
 
         // Snap to wire
         yTarget => this.posY;
@@ -829,7 +862,8 @@ class SingingBird extends Bird {
         yDistance / numSteps => yStepSize;
 
         // Calculate takeoff rotation
-        this.calculateRotation(startIdx, stopIdx, yStepSize, numSteps) => this.rotZ;
+        this.calculateRotation(startIdx, stopIdx, yStepSize, numSteps) => stopAngle;
+        spork ~ animateRotation(this.rotZ(), stopAngle);
 
         // Taking off from the wire
         for (startIdx => int idx; idx < stopIdx; idx++) {
@@ -838,7 +872,7 @@ class SingingBird extends Bird {
         }
 
         // Reset rotation
-        0. => this.rotZ;
+        spork ~ animateRotation(this.rotZ(), 0.);
 
         // Flying off the screen
         for (stopIdx => int idx; idx < path.size(); idx++) {
@@ -899,13 +933,6 @@ class BirdGenerator {
     }
 
     fun void addSingingBird(AudioProcessing dsp) {
-        /*
-            Variables:
-                Need a stopX for pos to land on wire
-                Need a time variable to stay on wire
-
-            Convert part of the path to polar coordinates to land in a semicircle
-        */
         startDelay => now;
         while (true) {
 
@@ -982,6 +1009,17 @@ class TelephonePole extends GGen {
             wire.positions( waveform );
         }
     }
+}
+
+// ************* //
+// AUDIO CLASSES //
+// ************* //
+class BassOsc {
+
+}
+
+class LeadOsc {
+
 }
 
 // Instantiate objects
