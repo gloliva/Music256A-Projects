@@ -24,7 +24,6 @@
             - have the spectrum fly out and shrink (scale down) to fade away
         - Daylight is more consenent, nightime is more disonant / minor sounds
         - add interpolation to waves
-        - IF there's time write it in 19 EDO
         - Pan birds left and right depending on where they are on the wire
 */
 
@@ -939,11 +938,16 @@ class BirdGenerator {
         startDelay => now;
         while (true) {
 
+            // Get Starting Y value
             Math.random2f(-2., 5.) => float shiftY;
+
+            // Get Z value
+            Math.random2(-1, 1) => int zDiff;
+            (0.75 * zDiff) + 1. => float shiftZ;
 
             // create new bird
             dsp.getLastNthSpectrum(0) @=> vec2 spectrum[];
-            SingingBird bird(.5, 10., shiftY, 1., spectrum);
+            SingingBird bird(.5, 10., shiftY, shiftZ, spectrum);
 
             Math.random2f(0.2, 0.6) => float scaleAmt;
             @(scaleAmt, scaleAmt, scaleAmt) => bird.sca;
@@ -965,7 +969,7 @@ class Pole extends GGen {
     GCube pole;
 
     fun @construct() {
-        pole --> GG.scene();
+        pole --> this;
 
         // scale
         pole.sca( @(0.1, 3., 0.2) );
@@ -983,25 +987,55 @@ class Pole extends GGen {
 class TelephonePole extends GGen {
     Pole leftPole;
     Pole rightPole;
-    GLines wire;
+    GCube leftCrossarm;
+    GCube rightCrossarm;
+
+    GLines backWire;
+    GLines middleWire;
+    GLines frontWire;
 
     fun @construct(vec3 pos, float poleOffset) {
         // Set wire params
-        wire.width(.02);
-        wire --> GG.scene();
-        leftPole --> this;
-        rightPole --> this;
-        wire.pos( @(pos.x, -0.6, pos.z + 0.01) );
-        0.8 => wire.scaX;
+        backWire.width(.02);
+        middleWire.width(.02);
+        frontWire.width(.02);
 
-        // Set pos
+        backWire.pos( @(pos.x, -0.6, pos.z - 0.75) );
+        middleWire.pos( @(pos.x, -0.6, pos.z) );
+        frontWire.pos( @(pos.x, -0.6, pos.z + 0.75) );
+
+        0.8 => backWire.scaX;
+        0.8 => middleWire.scaX;
+        0.8 => frontWire.scaX;
+
+        // Set pole pos
         leftPole.setPos( @(pos.x - poleOffset, pos.y, pos.z) );
         rightPole.setPos( @(pos.x + poleOffset, pos.y, pos.z) );
+
+        // Handle crossarms
+        @(-poleOffset, -0.6, pos.z) => leftCrossarm.pos;
+        @(poleOffset, -0.6, pos.z) => rightCrossarm.pos;
+        @(0.1, 0.2, 2.) => leftCrossarm.sca;
+        @(0.1, 0.2, 2.) => rightCrossarm.sca;
+        Color.BROWN => leftCrossarm.color;
+        Color.BROWN => rightCrossarm.color;
+
+        // Connection
+        leftPole --> this;
+        rightPole --> this;
+        leftCrossarm --> this;
+        rightCrossarm --> this;
+        backWire --> this;
+        middleWire --> this;
+        frontWire --> this;
+        this --> GG.scene();
 
         // names
         "Left Pole" => leftPole.name;
         "Right Pole" => rightPole.name;
-        "Wire" => wire.name;
+        "Left Crossarm" => leftCrossarm.name;
+        "Right Crossarm" => rightCrossarm.name;
+        "Wire" => middleWire.name;
         "Telephone Pole" => this.name;
     }
 
@@ -1009,7 +1043,9 @@ class TelephonePole extends GGen {
         while (true) {
             // next graphics frame
             GG.nextFrame() => now;
-            wire.positions( waveform );
+            backWire.positions( waveform );
+            middleWire.positions( waveform );
+            frontWire.positions( waveform );
         }
     }
 }
