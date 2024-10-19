@@ -25,6 +25,9 @@
         - Daylight is more consenent, nightime is more disonant / minor sounds
         - add interpolation to waves
         - Pan birds left and right depending on where they are on the wire
+        - Use the spectral analysis as "bird feathers"
+        - Maybe interpolate them a bit so they "blow in the wind" but softly
+        - Have birds land on the wire and "sing" along with the music
 */
 
 // Window Setup
@@ -544,15 +547,6 @@ class Grass extends GGen {
 
 
 class Bird extends GGen {
-    /*
-    TODO: Some ideas
-
-    Use the spectral analysis as "bird feathers"
-    Maybe interpolate them a bit so they "blow in the wind" but softly
-
-    Have birds land on the wire and "sing" along with the music
-    */
-
     // graphics objects
     GCube body;
     GCube leftWing;
@@ -1154,7 +1148,6 @@ class DetuneOsc {
         }
     }
 }
-
 
 
 // *********************** //
