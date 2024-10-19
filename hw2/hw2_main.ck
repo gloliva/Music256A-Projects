@@ -25,6 +25,7 @@
         - Daylight is more consenent, nightime is more disonant / minor sounds
         - add interpolation to waves
         - IF there's time write it in 19 EDO
+        - Pan birds left and right depending on where they are on the wire
 */
 
 // Window Setup
@@ -104,7 +105,9 @@ fun void scaleVectorArray(vec2 v[], float xScale, float yScale, float xShift, fl
 }
 
 
-// Classes
+// ************************ //
+// AUDIO PROCESSING CLASSES //
+// ************************ //
 class EnvelopeFollower {
     float prevStrength;
     float currStrength;
@@ -279,7 +282,7 @@ class AudioProcessing {
         */
 
         if (n >= HISTORY_SIZE) {
-            <<< "ERROR | Requested Spectrum: ", n, ", History Size: ", HISTORY_SIZE>>>;
+            <<< "ERROR | Requested Spectrum: ", n, ", History Size: ", HISTORY_SIZE >>>;
             vec2 fail[];
             return fail;
         }
@@ -326,6 +329,9 @@ class AudioProcessing {
 }
 
 
+// **************** //
+// GRAPHICS CLASSES //
+// **************** //
 class Sun extends GGen {
     32 => int numRays;
     vec3 anchorPoint;
@@ -1011,33 +1017,53 @@ class TelephonePole extends GGen {
 // ************* //
 // AUDIO CLASSES //
 // ************* //
-class FMBassOsc {
+class FMOsc {
+    // oscillators
     PulseOsc main;
     SinOsc mod;
-    float freqRatio;
 
-    fun @construct(float mainFreq, float modFreq, float modGain) {
+    // FM variables
+    float mainFreq;
+    float modAmt;
+    float ratio;
+
+    // Remaining UGen chain
+    Gain mix;
+
+    fun @construct(float mainFreq, float modFreq, float modAmt, float initGain) {
+        mainFreq => this.mainFreq;
+        modAmt => this.modAmt;
+
+        modFreq / mainFreq => this.ratio;
+
         mainFreq => main.freq;
-        this.setModulation(modFreq, modGain);
-        modFreq / mainFreq => freqRatio;
+        modFreq => mod.freq;
 
-        mod => main;
-        main.sync(2);
+        // handle connections
+        main => mix;
+        mod => blackhole;
+
+        // main gain
+        initGain => mix.gain;
+
+        // start FM
+        spork ~ this.modFM();
     }
 
-    fun setFreq(float newFreq) {
-        // Scale modulation frequency with main frequency
-        newFreq * freqRatio => mod.freq;
-        newFreq => main.freq;
+    fun modFM() {
+        while (true) {
+            (mod.last() * modAmt) + mainFreq => main.freq;
+            1::samp => now;
+        }
     }
 
-    fun setModulation(float freq, float gain) {
-        freq => mod.freq;
-        gain => mod.gain;
+    fun setFreq(float f) {
+        f => this.mainFreq;
+        f * this.ratio => mod.freq;
     }
 }
 
-class DetuneBassOsc {
+class DetuneOsc {
     // main oscillators
     PulseOsc main;
     PulseOsc lowDetune;
@@ -1094,11 +1120,126 @@ class DetuneBassOsc {
 }
 
 
-class LeadOsc {
 
+// *********************** //
+// NOTE SEQUENCING CLASSES //
+// *********************** //
+[-3, -1, 0, 2, 4, 5, 7] @=> int NOTE_NAME_MAP[];
+
+
+class Note {
+    // Accidentals
+    "#".charAt(0) => int SHARP;
+    "b".charAt(0) => int FLAT;
+
+    // Base Note
+    60 => int baseMidi;
+    4 => int baseRegister;
+
+    // This Note
+    int midi;
+    float freq;
+    float numBeats;
+
+    fun @construct(string noteSymbol, float numBeats) {
+        noteSymbol.length() => int size;
+
+        // Parse symbols from the note string
+        noteSymbol.substring(0, 1).upper().charAt(0) - "A".charAt(0) => int noteName;
+        -1 => int accidental;
+        -1 => int register;
+
+        if (size > 2) {
+            noteSymbol.charAt(1) => accidental;
+            noteSymbol.charAt(2) - "0".charAt(0) => register;
+        } else {
+            noteSymbol.charAt(1) - "0".charAt(0) => register;
+        }
+
+        // Handle Accidentals
+        0 => int diff;
+        if (accidental == SHARP) {
+            1 => diff;
+        } else if (accidental == FLAT) {
+            -1 => diff;
+        }
+
+        // Handle registers
+        NOTE_NAME_MAP[noteName] => int name;
+        if (name < 0) {
+            register + 1 => register;
+        }
+
+        // Calculate Midi and Freq
+        this.baseMidi + diff + (name) + (12 * (register - baseRegister)) => this.midi;
+        Math.mtof(this.midi) => this.freq;
+
+        // Beats
+        numBeats => this.numBeats;
+    }
 }
 
-// Instantiate objects
+
+class Sequence {
+    Note notes[];
+    int repeats;
+    int size;
+    int pointer;
+
+    fun @construct(Note notes[], int repeats) {
+        notes @=> this.notes;
+        repeats => repeats;
+        notes.size() => this.size;
+    }
+}
+
+
+// ************** //
+// NOTE SEQUENCES //
+// ************** //
+Sequence bassSeqL1(
+    [
+        new Note("F3", 3.),
+        new Note("A3", 0.5),
+        new Note("G3", 0.5),
+        new Note("D3", 2.),
+        new Note("C4", 1.),
+        new Note("A3", 1.)
+    ],
+    4
+);
+
+Sequence bassSeqR1(
+    [
+        new Note("F2", 3.),
+        new Note("E3", 0.5),
+        new Note("G2", 0.5),
+        new Note("D2", 2.),
+        new Note("C3", 1.),
+        new Note("E3", 1.)
+    ],
+    4
+);
+
+
+class Conductor {
+    float bpm;
+    dur quarterNote;
+
+    fun @construct(float bpm) {
+        bpm => this.bpm;
+        (60. / bpm)::second => this.quarterNote;
+    }
+
+    fun void play() {
+
+    }
+}
+
+
+// ******************** //
+// OBJECT INSTANTIATION //
+// ******************** //
 // ADC objects
 AudioProcessing dsp();
 EnvelopeFollower envFollower();
@@ -1112,7 +1253,9 @@ wires --> GG.scene();
 // Birds!
 BirdGenerator birdGen(2::second, 3::second);
 
-// Shred away
+// ************** //
+// PROGRAM SHREDS //
+// ************** //
 // Audio processing shreds
 spork ~ dsp.processInputAudio();
 spork ~ dsp.processWaveformGraphics();
@@ -1134,6 +1277,9 @@ spork ~ playFile();
 spork ~ playNoise();
 
 
+// **** //
+// MAIN //
+// **** //
 while (true) {
     // main loop
     GG.nextFrame() => now;
