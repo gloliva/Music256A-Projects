@@ -18,16 +18,13 @@
           add bloom to sun and moon
 
 
-    More TODO: for office hours
-        - scale of flight path when negative Z
-            - use screenCoordToWorldPos
-
     TODO: IDEAS to Implement:
         - Big birds are bass (LPF), medium birds are middle, small birds are highs (HPF)
         - Take DFT per bird, so when it "sings" the spectrum flies out of its mouth (maybe at some sampling period)
             - have the spectrum fly out and shrink (scale down) to fade away
         - Daylight is more consenent, nightime is more disonant / minor sounds
         - add interpolation to waves
+        - IF there's time write it in 19 EDO
 */
 
 // Window Setup
@@ -587,7 +584,7 @@ class Bird extends GGen {
 
         // Handle X movement
         movementPath[0].x => float startingX;
-        this.calculateScaleFactor(startingX, shiftZ) * 1.3 => float scalingFactor;
+        this.calculateScaleFactor(startingX, shiftZ) * 1.4 => float scalingFactor;
         scaleVectorArray(movementPath, scalingFactor, 1., 0., shiftY);
         movementPath @=> path;
 
@@ -1014,9 +1011,88 @@ class TelephonePole extends GGen {
 // ************* //
 // AUDIO CLASSES //
 // ************* //
-class BassOsc {
+class FMBassOsc {
+    PulseOsc main;
+    SinOsc mod;
+    float freqRatio;
 
+    fun @construct(float mainFreq, float modFreq, float modGain) {
+        mainFreq => main.freq;
+        this.setModulation(modFreq, modGain);
+        modFreq / mainFreq => freqRatio;
+
+        mod => main;
+        main.sync(2);
+    }
+
+    fun setFreq(float newFreq) {
+        // Scale modulation frequency with main frequency
+        newFreq * freqRatio => mod.freq;
+        newFreq => main.freq;
+    }
+
+    fun setModulation(float freq, float gain) {
+        freq => mod.freq;
+        gain => mod.gain;
+    }
 }
+
+class DetuneBassOsc {
+    // main oscillators
+    PulseOsc main;
+    PulseOsc lowDetune;
+    SawOsc highDetune;
+
+    // pulse width modulation
+    TriOsc pwMod;
+
+    // Remaining UGen chain
+    LPF filter;
+    Gain mix;
+
+    fun @construct(float initFreq, float initGain, int enablePWMod) {
+        this.setFreq(initFreq);
+
+        // handle connections
+        main => mix;
+        lowDetune => mix;
+        highDetune => mix;
+
+        // set osc gains
+        0.33 => lowDetune.gain;
+        0.33 => highDetune.gain;
+        0.33 => main.gain;
+
+        // filter parameters
+        400 => filter.freq;
+
+        // pulse width modulator
+        50. => pwMod.freq;
+        pwMod => blackhole;
+        if (enablePWMod) {
+            spork ~ this.pulseWidthModulation();
+        }
+
+        // main gain
+        initGain => mix.gain;
+    }
+
+    fun setFreq(float f) {
+        f => main.freq;
+        f * 0.996 => lowDetune.freq;
+        f * 1.004 => highDetune.freq;
+    }
+
+    fun pulseWidthModulation() {
+        while (true) {
+            Std.scalef(pwMod.last(), -1., 1., 0.45, 0.55) => float mod;
+            mod => main.width;
+            mod => lowDetune.width;
+            1::samp => now;
+        }
+    }
+}
+
 
 class LeadOsc {
 
