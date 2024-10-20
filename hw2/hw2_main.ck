@@ -191,21 +191,10 @@ class AudioProcessing {
 
     float window[];
 
-    fun @construct() {
+    fun @construct(Gain input) {
         // Waveform and spectrum analysis objects
-        if (AUDIO_MODE == 0) {
-            adc => accum;
-            adc => dcblocker;
-        } else if (AUDIO_MODE == 1) {
-            buf => accum;
-            buf => dcblocker;
-        } else if (AUDIO_MODE == 2) {
-            noizeGain => accum;
-            noizeGain => dcblocker;
-        }
-
-        accum => blackhole;
-        dcblocker => fft => blackhole;
+        input => accum => blackhole;
+        input => dcblocker => fft => blackhole;
 
         // adjust DC blocking band
         .95 => dcblocker.blockZero;
@@ -546,6 +535,92 @@ class Grass extends GGen {
 }
 
 
+class Pole extends GGen {
+    GCube pole;
+
+    fun @construct() {
+        pole --> this;
+
+        // scale
+        pole.sca( @(0.1, 3., 0.2) );
+
+        // color
+        Color.BROWN => pole.color;
+    }
+
+    fun void setPos(vec3 pos) {
+        pole.pos( pos );
+    }
+}
+
+
+class TelephonePole extends GGen {
+    Pole leftPole;
+    Pole rightPole;
+    GCube leftCrossarm;
+    GCube rightCrossarm;
+
+    GLines backWire;
+    GLines middleWire;
+    GLines frontWire;
+
+    fun @construct(vec3 pos, float poleOffset) {
+        // Set wire params
+        backWire.width(.02);
+        middleWire.width(.02);
+        frontWire.width(.02);
+
+        backWire.pos( @(pos.x, -0.6, pos.z - 0.75) );
+        middleWire.pos( @(pos.x, -0.6, pos.z) );
+        frontWire.pos( @(pos.x, -0.6, pos.z + 0.75) );
+
+        0.8 => backWire.scaX;
+        0.8 => middleWire.scaX;
+        0.8 => frontWire.scaX;
+
+        // Set pole pos
+        leftPole.setPos( @(pos.x - poleOffset, pos.y, pos.z) );
+        rightPole.setPos( @(pos.x + poleOffset, pos.y, pos.z) );
+
+        // Handle crossarms
+        @(-poleOffset, -0.6, pos.z) => leftCrossarm.pos;
+        @(poleOffset, -0.6, pos.z) => rightCrossarm.pos;
+        @(0.1, 0.2, 2.) => leftCrossarm.sca;
+        @(0.1, 0.2, 2.) => rightCrossarm.sca;
+        Color.BROWN => leftCrossarm.color;
+        Color.BROWN => rightCrossarm.color;
+
+        // Connection
+        leftPole --> this;
+        rightPole --> this;
+        leftCrossarm --> this;
+        rightCrossarm --> this;
+        backWire --> this;
+        middleWire --> this;
+        frontWire --> this;
+        this --> GG.scene();
+
+        // names
+        "Left Pole" => leftPole.name;
+        "Right Pole" => rightPole.name;
+        "Left Crossarm" => leftCrossarm.name;
+        "Right Crossarm" => rightCrossarm.name;
+        "Wire" => middleWire.name;
+        "Telephone Pole" => this.name;
+    }
+
+    fun void wireMovement(vec2 waveform[]) {
+        while (true) {
+            // next graphics frame
+            GG.nextFrame() => now;
+            backWire.positions( waveform );
+            middleWire.positions( waveform );
+            frontWire.positions( waveform );
+        }
+    }
+}
+
+
 class Bird extends GGen {
     // graphics objects
     GCube body;
@@ -572,8 +647,21 @@ class Bird extends GGen {
     vec2 currPathGraphics[0];
     GLines pathGraphics;
 
+    // song
+    BirdSong song;
+
+    fun @construct(BirdSong song, float flapPeriod, float moveSpeed, float shiftY, float shiftZ, vec2 movementPath[]) {
+        // Song variables
+        song @=> this.song;
+        this.setUp(flapPeriod, moveSpeed, shiftY, shiftZ, movementPath);
+    }
+
     fun @construct(float flapPeriod, float moveSpeed, float shiftY, float shiftZ, vec2 movementPath[]) {
-        // set instance variables
+        this.setUp(flapPeriod, moveSpeed, shiftY, shiftZ, movementPath);
+    }
+
+    fun void setUp(float flapPeriod, float moveSpeed, float shiftY, float shiftZ, vec2 movementPath[]) {
+        // set member variables
         1 => inFlight;
         1 => mouthMoving;
         (2 * Math.PI) / (flapPeriod * 1000) => rotateAmount;
@@ -776,8 +864,8 @@ class FlyingBird extends Bird {
 
 
 class SingingBird extends Bird {
-    fun @construct(float flapPeriod, float moveSpeed, float shiftY, float shiftZ, vec2 movementPath[]) {
-        Bird(flapPeriod, moveSpeed, shiftY, shiftZ, movementPath);
+    fun @construct(BirdSong song, float flapPeriod, float moveSpeed, float shiftY, float shiftZ, vec2 movementPath[]) {
+        Bird(song, flapPeriod, moveSpeed, shiftY, shiftZ, movementPath);
         "Singing Bird" => this.name;
     }
 
@@ -806,6 +894,26 @@ class SingingBird extends Bird {
         }
 
         me.exit();
+    }
+
+    fun void playSong() {
+
+        0.5 => this.song.gain.gain;
+        for (Sequence seq : this.song.seqs) {
+            0 => int noteIdx;
+            0 => int repeats;
+            while (repeats < seq.repeats) {
+                seq.getNote(noteIdx) @=> Note note;
+                note.freq => this.song.osc.freq;
+                (noteIdx + 1) % seq.size => noteIdx;
+                if (noteIdx == 0) repeats++;
+
+                note.numBeats * 0.5::second => now;
+            }
+        }
+
+        0.0 => this.song.gain.gain;
+
     }
 
     fun void animateMovement(int startLanding, int endLanding, int endTakeoff) {
@@ -844,6 +952,7 @@ class SingingBird extends Bird {
         spork ~ removePath(currPathGraphics, 1::ms);
 
         // Waiting on the wire
+        this.playSong();
         4::second => now;
 
         // Starting idx is current idx on the wire, update new stoping idx
@@ -897,15 +1006,17 @@ class SingingBird extends Bird {
 class BirdGenerator {
     dur birdFrequency;
     dur startDelay;
+    Sequence seqs[];
 
     fun @construct(dur delay) {
         delay => startDelay;
         5::second => birdFrequency;
     }
 
-    fun @construct(dur startDelay, dur birdFrequency) {
+    fun @construct(dur startDelay, dur birdFrequency, Sequence seqs[]) {
         startDelay => this.startDelay;
         birdFrequency => this.birdFrequency;
+        seqs @=> this.seqs;
     }
 
     fun void addFlyindBird(AudioProcessing dsp) {
@@ -939,9 +1050,16 @@ class BirdGenerator {
             Math.random2(-1, 1) => int zDiff;
             (0.75 * zDiff) + 1. => float shiftZ;
 
+            // Bird Song
+            PulseOsc voice;
+            Gain g;
+
+            AudioProcessing birdDSP(g);
+            BirdSong song(birdDSP, voice, this.seqs);
+
             // create new bird
             dsp.getLastNthSpectrum(0) @=> vec2 spectrum[];
-            SingingBird bird(.5, 10., shiftY, shiftZ, spectrum);
+            SingingBird bird(song, .5, 10., shiftY, shiftZ, spectrum);
 
             Math.random2f(0.2, 0.6) => float scaleAmt;
             @(scaleAmt, scaleAmt, scaleAmt) => bird.sca;
@@ -952,97 +1070,12 @@ class BirdGenerator {
             Math.random2(750, dsp.WINDOW_SIZE - 100) => int endTakeoff;
 
             bird.animate(startLanding, endLanding, endTakeoff);
-            5::second => now;
+            20::second => now;
         }
 
     }
 }
 
-
-class Pole extends GGen {
-    GCube pole;
-
-    fun @construct() {
-        pole --> this;
-
-        // scale
-        pole.sca( @(0.1, 3., 0.2) );
-
-        // color
-        Color.BROWN => pole.color;
-    }
-
-    fun void setPos(vec3 pos) {
-        pole.pos( pos );
-    }
-}
-
-
-class TelephonePole extends GGen {
-    Pole leftPole;
-    Pole rightPole;
-    GCube leftCrossarm;
-    GCube rightCrossarm;
-
-    GLines backWire;
-    GLines middleWire;
-    GLines frontWire;
-
-    fun @construct(vec3 pos, float poleOffset) {
-        // Set wire params
-        backWire.width(.02);
-        middleWire.width(.02);
-        frontWire.width(.02);
-
-        backWire.pos( @(pos.x, -0.6, pos.z - 0.75) );
-        middleWire.pos( @(pos.x, -0.6, pos.z) );
-        frontWire.pos( @(pos.x, -0.6, pos.z + 0.75) );
-
-        0.8 => backWire.scaX;
-        0.8 => middleWire.scaX;
-        0.8 => frontWire.scaX;
-
-        // Set pole pos
-        leftPole.setPos( @(pos.x - poleOffset, pos.y, pos.z) );
-        rightPole.setPos( @(pos.x + poleOffset, pos.y, pos.z) );
-
-        // Handle crossarms
-        @(-poleOffset, -0.6, pos.z) => leftCrossarm.pos;
-        @(poleOffset, -0.6, pos.z) => rightCrossarm.pos;
-        @(0.1, 0.2, 2.) => leftCrossarm.sca;
-        @(0.1, 0.2, 2.) => rightCrossarm.sca;
-        Color.BROWN => leftCrossarm.color;
-        Color.BROWN => rightCrossarm.color;
-
-        // Connection
-        leftPole --> this;
-        rightPole --> this;
-        leftCrossarm --> this;
-        rightCrossarm --> this;
-        backWire --> this;
-        middleWire --> this;
-        frontWire --> this;
-        this --> GG.scene();
-
-        // names
-        "Left Pole" => leftPole.name;
-        "Right Pole" => rightPole.name;
-        "Left Crossarm" => leftCrossarm.name;
-        "Right Crossarm" => rightCrossarm.name;
-        "Wire" => middleWire.name;
-        "Telephone Pole" => this.name;
-    }
-
-    fun void wireMovement(vec2 waveform[]) {
-        while (true) {
-            // next graphics frame
-            GG.nextFrame() => now;
-            backWire.positions( waveform );
-            middleWire.positions( waveform );
-            frontWire.positions( waveform );
-        }
-    }
-}
 
 // ************* //
 // AUDIO CLASSES //
@@ -1217,8 +1250,49 @@ class Sequence {
 
     fun @construct(Note notes[], int repeats) {
         notes @=> this.notes;
-        repeats => repeats;
+        repeats => this.repeats;
         notes.size() => this.size;
+    }
+
+    fun Note getNote(int idx) {
+        return this.notes[idx];
+    }
+}
+
+
+class Conductor {
+    float bpm;
+    dur quarterNote;
+
+    fun @construct(float bpm) {
+        bpm => this.bpm;
+        (60. / bpm)::second => this.quarterNote;
+    }
+
+    fun void play() {
+
+    }
+}
+
+
+class BirdSong {
+    AudioProcessing dsp;
+    PulseOsc osc;
+    Gain gain;
+    Sequence seqs[];
+
+    fun @construct(AudioProcessing dsp, PulseOsc osc) {
+        dsp @=> this.dsp;
+        osc @=> this.osc;
+    }
+
+    fun @construct(AudioProcessing dsp, PulseOsc osc, Sequence seqs[]) {
+        dsp @=> this.dsp;
+        osc @=> this.osc;
+        seqs @=> this.seqs;
+
+        0. => gain.gain;
+        osc => gain => dac;
     }
 }
 
@@ -1250,56 +1324,51 @@ Sequence bassSeqR1(
     4
 );
 
+Sequence @ bassL1[1];
+Sequence @ bassR1[1];
 
-class Conductor {
-    float bpm;
-    dur quarterNote;
-
-    fun @construct(float bpm) {
-        bpm => this.bpm;
-        (60. / bpm)::second => this.quarterNote;
-    }
-
-    fun void play() {
-
-    }
-}
+bassSeqL1 @=> bassL1[0];
+bassSeqR1 @=> bassR1[0];
 
 
 // ******************** //
 // OBJECT INSTANTIATION //
 // ******************** //
+
+// TODO: Remove when done testing
+Gain TEST_INPUT;
+adc => TEST_INPUT;
+
 // ADC objects
-AudioProcessing dsp();
+AudioProcessing mainDSP(TEST_INPUT);
 EnvelopeFollower envFollower();
 
 // Graphics objects
 SkyBox sky(30::second);
 Grass grass();
 TelephonePole wires( @(0., -2., 1), 4);
-wires --> GG.scene();
 
 // Birds!
-BirdGenerator birdGen(2::second, 3::second);
+BirdGenerator birdGen(2::second, 3::second, bassL1);
 
 // ************** //
 // PROGRAM SHREDS //
 // ************** //
 // Audio processing shreds
-spork ~ dsp.processInputAudio();
-spork ~ dsp.processWaveformGraphics();
+spork ~ mainDSP.processInputAudio();
+spork ~ mainDSP.processWaveformGraphics();
 spork ~ envFollower.follow();
 
 // graphics shreds
 spork ~ sky.dayNightCycle();
-spork ~ wires.wireMovement(dsp.waveform);
-spork ~ sky.sun.animateRays(dsp.waveform);
-spork ~ grass.animateGrass(dsp);
+spork ~ wires.wireMovement(mainDSP.waveform);
+spork ~ sky.sun.animateRays(mainDSP.waveform);
+spork ~ grass.animateGrass(mainDSP);
 spork ~ sky.moon.glow(envFollower);
 
 // Bird movement shreds
-spork ~ birdGen.addFlyindBird(dsp);
-spork ~ birdGen.addSingingBird(dsp);
+spork ~ birdGen.addFlyindBird(mainDSP);
+spork ~ birdGen.addSingingBird(mainDSP);
 
 // Audio shreds
 spork ~ playFile();
