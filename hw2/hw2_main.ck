@@ -634,6 +634,9 @@ class Bird extends GGen {
     GCube beakBottom;
     GCube eye;
 
+    // Color
+    vec3 birdColor;
+
     // animation variables
     int inFlight;
     int mouthMoving;
@@ -677,6 +680,7 @@ class Bird extends GGen {
 
         // Colors
         Color.random() => vec3 birdColor;
+        birdColor => this.birdColor;
 
         // Graphics rendering
         // Handle head
@@ -870,6 +874,11 @@ class SingingBird extends Bird {
     }
 
     fun void animate(int startLanding, int endLanding, int endTakeoff) {
+        // Audio processing
+        spork ~ this.song.dsp.processInputAudio();
+        spork ~ this.song.dsp.processWaveformGraphics();
+
+        // Animations
         spork ~ animateWing();
         spork ~ animateMouth();
         spork ~ animateMovement(startLanding, endLanding, endTakeoff);
@@ -897,9 +906,13 @@ class SingingBird extends Bird {
     }
 
     fun void playSong() {
-
-        0.5 => this.song.gain.gain;
+        // Play songs
+        0.1 => this.song.gain.gain;
         for (Sequence seq : this.song.seqs) {
+            // Create spectrum visuals
+            spork ~ this.createSongSpectrum(seq);
+
+            // Handle repeats
             0 => int noteIdx;
             0 => int repeats;
             while (repeats < seq.repeats) {
@@ -913,7 +926,83 @@ class SingingBird extends Bird {
         }
 
         0.0 => this.song.gain.gain;
+    }
 
+    fun void createSongSpectrum(Sequence seq) {
+        // TODO: handle repeats using spectrum
+        seq.length * 0.5::second => dur totalDur;
+        2 => int spectrumsPerSecond;
+        1::second / spectrumsPerSecond => dur interval;
+
+        // handle repeats
+        now + totalDur => time totalTime;
+        now => time currTime;
+        while (currTime < totalTime) {
+            spork ~ this.animateSongSpectrum();
+
+            currTime + interval => currTime;
+            interval => now;
+        }
+
+        2::second => now;
+    }
+
+    fun void animateSongSpectrum() {
+        GLines spectrumGraphics;
+        vec2 spectrum[];
+
+        // Lifespan
+        1::ms => dur update;
+        4::second => dur delay;
+
+        now + delay => time totalTime;
+        now => time currTime;
+
+        // Spectrum
+        this.birdColor * 10. => spectrumGraphics.color;
+        0.2 => spectrumGraphics.width;
+        @(0.2, 0.1, 1.) => vec3 fullSpectrumScale;
+        @(0., 0., 1.) => spectrumGraphics.sca;
+        spectrumGraphics --> this.head;
+
+        // Graphics Movement
+        15. => float xEnd;
+        delay / update => float numSteps;
+        xEnd / numSteps => float stepSize;
+
+        // Graphics scaling
+        0 => int shrink;
+        fullSpectrumScale.x / (numSteps / 2) => float xScaleStepSize;
+        fullSpectrumScale.y / (numSteps / 2) => float yScaleStepSize;
+
+        while (currTime < totalTime) {
+            // this.song.dsp.getLastNthSpectrum(0) @=> vec2 spectrum[];
+            this.song.dsp.waveform @=> vec2 spectrum[];
+            spectrum => spectrumGraphics.positions;
+
+            // Move spectrum
+            spectrumGraphics.posX() + stepSize => spectrumGraphics.posX;
+
+            // Scale spectrum down
+            spectrumGraphics.sca() @=> vec3 currScale;
+            if ((currScale.x >= fullSpectrumScale.x)) {
+                1 => shrink;
+            }
+            if (shrink == 0) {
+                currScale.x + xScaleStepSize => spectrumGraphics.scaX;
+                currScale.y + yScaleStepSize => spectrumGraphics.scaY;
+            } else if (shrink == 1) {
+                currScale.x - xScaleStepSize => spectrumGraphics.scaX;
+                currScale.y - yScaleStepSize => spectrumGraphics.scaY;
+            }
+
+            update + currTime => currTime;
+            update => now;
+        }
+
+        spectrumGraphics --< this.head;
+
+        me.exit();
     }
 
     fun void animateMovement(int startLanding, int endLanding, int endTakeoff) {
@@ -952,8 +1041,9 @@ class SingingBird extends Bird {
         spork ~ removePath(currPathGraphics, 1::ms);
 
         // Waiting on the wire
+        1::second => now;
         this.playSong();
-        4::second => now;
+        1::second => now;
 
         // Starting idx is current idx on the wire, update new stoping idx
         stopIdx => startIdx;
@@ -1051,10 +1141,9 @@ class BirdGenerator {
             (0.75 * zDiff) + 1. => float shiftZ;
 
             // Bird Song
-            PulseOsc voice;
-            Gain g;
+            PulseOsc voice => Gain dspGain;
 
-            AudioProcessing birdDSP(g);
+            AudioProcessing birdDSP(dspGain);
             BirdSong song(birdDSP, voice, this.seqs);
 
             // create new bird
@@ -1247,11 +1336,19 @@ class Sequence {
     int repeats;
     int size;
     int pointer;
+    float length;
 
     fun @construct(Note notes[], int repeats) {
         notes @=> this.notes;
         repeats => this.repeats;
         notes.size() => this.size;
+
+        // Calculate how long the sequence is in terms of beats
+        0. => length;
+        for (Note n: notes) {
+            n.numBeats + length => length;
+        }
+        length => this.length;
     }
 
     fun Note getNote(int idx) {
@@ -1277,16 +1374,11 @@ class Conductor {
 
 class BirdSong {
     AudioProcessing dsp;
-    PulseOsc osc;
+    Osc osc;
     Gain gain;
     Sequence seqs[];
 
-    fun @construct(AudioProcessing dsp, PulseOsc osc) {
-        dsp @=> this.dsp;
-        osc @=> this.osc;
-    }
-
-    fun @construct(AudioProcessing dsp, PulseOsc osc, Sequence seqs[]) {
+    fun @construct(AudioProcessing dsp, Osc osc, Sequence seqs[]) {
         dsp @=> this.dsp;
         osc @=> this.osc;
         seqs @=> this.seqs;
@@ -1302,24 +1394,16 @@ class BirdSong {
 // ************** //
 Sequence bassSeqL1(
     [
-        new Note("F3", 3.),
-        new Note("A3", 0.5),
-        new Note("G3", 0.5),
-        new Note("D3", 2.),
-        new Note("C4", 1.),
-        new Note("A3", 1.)
-    ],
+        new Note("F3", 3.), new Note("A3", 0.5), new Note("G3", 0.5),
+        new Note("D3", 2.), new Note("C4", 1.), new Note("A3", 1.)
+     ],
     4
 );
 
 Sequence bassSeqR1(
     [
-        new Note("F2", 3.),
-        new Note("E3", 0.5),
-        new Note("G2", 0.5),
-        new Note("D2", 2.),
-        new Note("C3", 1.),
-        new Note("E3", 1.)
+        new Note("F2", 3.), new Note("E3", 0.5), new Note("G2", 0.5),
+        new Note("D2", 2.), new Note("C3", 1.), new Note("E3", 1.)
     ],
     4
 );
