@@ -911,17 +911,17 @@ class SingingBird extends Bird {
 
     fun void playSong() {
         // Play songs
-        0.1 => this.song.gain.gain;
+        0.1 => this.song.setGain;
         for (Sequence seq : this.song.seqs) {
             // Create spectrum visuals
-            spork ~ this.createSongSpectrum(seq);
+            // spork ~ this.createSongSpectrum(seq);
 
             // Handle repeats
             0 => int noteIdx;
             0 => int repeats;
             while (repeats < seq.repeats) {
                 seq.getNote(noteIdx) @=> Note note;
-                note.freq => this.song.osc.freq;
+                note.freq => this.song.osc.setFreq;
                 (noteIdx + 1) % seq.size => noteIdx;
                 if (noteIdx == 0) repeats++;
 
@@ -929,7 +929,7 @@ class SingingBird extends Bird {
             }
         }
 
-        0.0 => this.song.gain.gain;
+        0.0 => this.song.setGain;
     }
 
     fun void createSongSpectrum(Sequence seq) {
@@ -1100,17 +1100,15 @@ class SingingBird extends Bird {
 class BirdGenerator {
     dur birdFrequency;
     dur startDelay;
-    Sequence seqs[];
 
     fun @construct(dur delay) {
         delay => startDelay;
         5::second => birdFrequency;
     }
 
-    fun @construct(dur startDelay, dur birdFrequency, Sequence seqs[]) {
+    fun @construct(dur startDelay, dur birdFrequency) {
         startDelay => this.startDelay;
         birdFrequency => this.birdFrequency;
-        seqs @=> this.seqs;
     }
 
     fun void addFlyindBird(AudioProcessing dsp) {
@@ -1145,10 +1143,12 @@ class BirdGenerator {
             (0.75 * zDiff) + 1. => float shiftZ;
 
             // Bird Song
-            PulseOsc voice => Gain dspGain;
+            FMOsc voice(220., 72., 66., 0.6);
+            // PulseOsc voice => Gain dspGain;
+            voice.mix => Gain dspGain;
 
             AudioProcessing birdDSP(dspGain);
-            BirdSong song(birdDSP, voice, this.seqs);
+            BirdSong song(birdDSP, voice, [new Sequence()]);
 
             // create new bird
             dsp.getLastNthSpectrum(0) @=> vec2 spectrum[];
@@ -1165,7 +1165,49 @@ class BirdGenerator {
             bird.animate(startLanding, endLanding, endTakeoff);
             20::second => now;
         }
+    }
 
+    fun void addBassBird(AudioProcessing dsp, BirdCoordinator bassBirds[]) {
+        for (BirdCoordinator bassBird : bassBirds) {
+            // Bird generation delay
+            bassBird.delay => now;
+
+            // Get Starting Y value
+            Math.random2f(1.5, 5.) => float shiftY;
+
+            // Get Z value
+            -1 => int zDiff;
+            (0.75 * zDiff) + 1. => float shiftZ;
+
+            // Get Pan value
+            bassBird.xLandingPos $ float / dsp.WINDOW_SIZE $ float => float landingRatio;
+            Std.scalef(landingRatio, 0., 1., -1., 1.) => float panVal;
+            <<< "Pan", panVal, "Ratio", landingRatio >>>;
+
+            // Bass Bird Song
+            FMOsc voice(220., 72., 66., 0.6);
+            voice.mix => Gain dspGain;
+
+            AudioProcessing birdDSP(dspGain);
+            BirdSong song(birdDSP, voice, bassBird.seqs);
+            panVal => song.setPan;
+
+            // create new bird
+            dsp.getLastNthSpectrum(0) @=> vec2 flightPath[];
+            SingingBird bird(song, .5, 10., shiftY, shiftZ, flightPath);
+
+            Math.random2f(0.2, 0.6) => float scaleAmt;
+            @(scaleAmt, scaleAmt, scaleAmt) => bird.sca;
+
+            // let it fly!
+            Math.random2(50, 200) => int startLanding;
+            bassBird.xLandingPos => int endLanding;
+            Math.random2(750, dsp.WINDOW_SIZE - 100) => int endTakeoff;
+
+            bird.animate(startLanding, endLanding, endTakeoff);
+        }
+
+        3::minute => now;
     }
 }
 
@@ -1173,7 +1215,17 @@ class BirdGenerator {
 // ************* //
 // AUDIO CLASSES //
 // ************* //
-class FMOsc {
+class CustomOsc {
+    // Main mix
+    Gain mix;
+
+    fun setFreq(float f) {
+        <<< "NOT IMPLEMENTED ERROR: must override setFreq in parent class" >>>;
+    }
+}
+
+
+class FMOsc extends CustomOsc {
     // oscillators
     PulseOsc main;
     SinOsc mod;
@@ -1182,9 +1234,6 @@ class FMOsc {
     float mainFreq;
     float modAmt;
     float ratio;
-
-    // Remaining UGen chain
-    Gain mix;
 
     fun @construct(float mainFreq, float modFreq, float modAmt, float initGain) {
         mainFreq => this.mainFreq;
@@ -1219,7 +1268,8 @@ class FMOsc {
     }
 }
 
-class DetuneOsc {
+
+class DetuneOsc extends CustomOsc {
     // main oscillators
     PulseOsc main;
     PulseOsc lowDetune;
@@ -1230,7 +1280,6 @@ class DetuneOsc {
 
     // Remaining UGen chain
     LPF filter;
-    Gain mix;
 
     fun @construct(float initFreq, float initGain, int enablePWMod) {
         this.setFreq(initFreq);
@@ -1371,17 +1420,42 @@ class Sequence {
 
 class BirdSong {
     AudioProcessing dsp;
-    Osc osc;
-    Gain gain;
+    CustomOsc osc;
+    Gain gain[2];
+    Pan2 pan;
     Sequence seqs[];
 
-    fun @construct(AudioProcessing dsp, Osc osc, Sequence seqs[]) {
+    fun @construct(AudioProcessing dsp, CustomOsc osc, Sequence seqs[]) {
         dsp @=> this.dsp;
         osc @=> this.osc;
         seqs @=> this.seqs;
 
-        0. => gain.gain;
-        osc => gain => dac;
+        0. => pan.pan;
+        0. => gain[0].gain;
+        0. => gain[1].gain;
+        osc.mix => pan => gain => dac;
+    }
+
+    fun void setPan(float pan) {
+        pan => this.pan.pan;
+    }
+
+    fun void setGain(float g) {
+        g => this.gain[0].gain;
+        g => this.gain[1].gain;
+    }
+}
+
+
+class BirdCoordinator {
+    int xLandingPos;
+    dur delay;
+    Sequence seqs[];
+
+    fun @construct(int xLandingPos, dur delay, Sequence seqs[]) {
+        xLandingPos => this.xLandingPos;
+        delay => this.delay;
+        seqs @=> this.seqs;
     }
 }
 
@@ -1394,7 +1468,7 @@ Sequence bassSeqL1(
         new Note("F3", 3.), new Note("A3", 0.5), new Note("G3", 0.5),
         new Note("D3", 2.), new Note("C4", 1.), new Note("A3", 1.)
      ],
-    4
+    6
 );
 
 Sequence bassSeqR1(
@@ -1428,18 +1502,39 @@ Sequence lead2Seq1(
     4
 );
 
-
+// Bass
 Sequence @ bassL1[1];
 Sequence @ bassR1[1];
 
 bassSeqL1 @=> bassL1[0];
 bassSeqR1 @=> bassR1[0];
 
+// Leads
+Sequence @ lead1[1];
+Sequence @ lead2[1];
+
+lead1Seq1 @=> lead1[0];
+lead2Seq1 @=> lead2[0];
+
+
+// ***************** //
+// BIRD COORDINATION //
+// ***************** //
+[
+    new BirdCoordinator(300, 2::second, bassL1),
+    new BirdCoordinator(700, 4::second, bassR1),
+] @=> BirdCoordinator bassBirds[];
+
+
+[
+    new BirdCoordinator(400, 8::second, lead1),
+    new BirdCoordinator(500, 4::second, lead2),
+] @=> BirdCoordinator leadBirds[];
+
 
 // ******************** //
 // OBJECT INSTANTIATION //
 // ******************** //
-
 // TODO: Remove when done testing
 Gain TEST_INPUT;
 adc => TEST_INPUT;
@@ -1454,7 +1549,7 @@ Grass grass();
 TelephonePole wires( @(0., -2., 1), 4);
 
 // Birds!
-BirdGenerator birdGen(2::second, 3::second, bassL1);
+BirdGenerator birdGen(2::second, 3::second);
 
 // ************** //
 // PROGRAM SHREDS //
@@ -1473,7 +1568,8 @@ spork ~ sky.moon.glow(envFollower);
 
 // Bird movement shreds
 spork ~ birdGen.addFlyindBird(mainDSP);
-spork ~ birdGen.addSingingBird(mainDSP);
+// spork ~ birdGen.addSingingBird(mainDSP);
+spork ~ birdGen.addBassBird(mainDSP, bassBirds);
 
 // Audio shreds
 spork ~ playFile();
