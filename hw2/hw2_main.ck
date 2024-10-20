@@ -42,6 +42,10 @@ mainCam.posZ(8.0);
 // Lighting
 GG.scene().light() @=> GLight sceneLight;
 
+// Global Tempo Variables
+120. => float TEMPO;
+(60. / TEMPO)::second => dur QUARTER_NOTE;
+
 // Handle audio source
 0 => int AUDIO_MODE;
 if(me.args()) {
@@ -921,7 +925,7 @@ class SingingBird extends Bird {
                 (noteIdx + 1) % seq.size => noteIdx;
                 if (noteIdx == 0) repeats++;
 
-                note.numBeats * 0.5::second => now;
+                note.numBeats * QUARTER_NOTE => now;
             }
         }
 
@@ -930,7 +934,7 @@ class SingingBird extends Bird {
 
     fun void createSongSpectrum(Sequence seq) {
         // TODO: handle repeats using spectrum
-        seq.length * 0.5::second => dur totalDur;
+        seq.length * QUARTER_NOTE => dur totalDur;
         2 => int spectrumsPerSecond;
         1::second / spectrumsPerSecond => dur interval;
 
@@ -1282,6 +1286,7 @@ class Note {
     // Accidentals
     "#".charAt(0) => int SHARP;
     "b".charAt(0) => int FLAT;
+    "R" => string REST;
 
     // Base Note
     60 => int baseMidi;
@@ -1293,6 +1298,17 @@ class Note {
     float numBeats;
 
     fun @construct(string noteSymbol, float numBeats) {
+        // Beats
+        numBeats => this.numBeats;
+
+        // Handle rests
+        if (noteSymbol == REST) {
+            -1 => this.midi;
+            0. => this.freq;
+            return;
+        }
+
+        // Handle note
         noteSymbol.length() => int size;
 
         // Parse symbols from the note string
@@ -1324,9 +1340,6 @@ class Note {
         // Calculate Midi and Freq
         this.baseMidi + diff + (name) + (12 * (register - baseRegister)) => this.midi;
         Math.mtof(this.midi) => this.freq;
-
-        // Beats
-        numBeats => this.numBeats;
     }
 }
 
@@ -1335,7 +1348,6 @@ class Sequence {
     Note notes[];
     int repeats;
     int size;
-    int pointer;
     float length;
 
     fun @construct(Note notes[], int repeats) {
@@ -1353,21 +1365,6 @@ class Sequence {
 
     fun Note getNote(int idx) {
         return this.notes[idx];
-    }
-}
-
-
-class Conductor {
-    float bpm;
-    dur quarterNote;
-
-    fun @construct(float bpm) {
-        bpm => this.bpm;
-        (60. / bpm)::second => this.quarterNote;
-    }
-
-    fun void play() {
-
     }
 }
 
@@ -1407,6 +1404,30 @@ Sequence bassSeqR1(
     ],
     4
 );
+
+
+Sequence lead1Seq1(
+    [
+        new Note("F4", 0.5), new Note("G4", 0.5), new Note("A4", 0.5), new Note("Bb4", 1.),
+        new Note("A4", 0.5), new Note("G4", 0.5), new Note("A4", 1.), new Note("D4", 0.5),
+        new Note("F4", 1.), new Note("F5", 1.), new Note("D5", 1.)
+     ],
+    4
+);
+
+
+Sequence lead2Seq1(
+    [
+        new Note("Bb5", 2.25), new Note("R", 0.75), new Note("A5", 0.5), new Note("F5", 0.5),
+        new Note("G5", 2.), new Note("D6", 0.667), new Note("C6", 0.666), new Note("G5", 0.667),
+        new Note("Bb5", 2.25), new Note("R", 0.75), new Note("A5", 0.5), new Note("F5", 0.5),
+        new Note("G5", 1.5), new Note("R", 0.5),
+        new Note("F5", 0.334), new Note("Bb5", 0.333), new Note("C6", 0.333),
+        new Note("G5", 0.334), new Note("D6", 0.333), new Note("F6", 0.333)
+     ],
+    4
+);
+
 
 Sequence @ bassL1[1];
 Sequence @ bassR1[1];
