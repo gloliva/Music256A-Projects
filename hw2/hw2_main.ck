@@ -49,7 +49,6 @@ GG.scene().light() @=> GLight sceneLight;
 // Global audio
 Gain MASTER[2] => dac;
 Gain PROCESSING_GAIN;
-Gain ENV_FOLLOWER_GAIN;
 
 // Handle audio source
 0 => int AUDIO_MODE;
@@ -58,27 +57,14 @@ if(me.args()) {
 }
 
 
-// Quick and dirty read from buffer and play sound for milestone
-// TODO: get rid of this after milestone
-me.dir() + "sunday.wav" => string filename;
-SndBuf buf(filename) => dac;
-0 => buf.gain;
+// Play wind sound
+me.dir() + "wind.wav" => string filename;
+SndBuf buf(filename) => MASTER;
+buf => PROCESSING_GAIN;
+0.8 => buf.gain;
+1. => buf.rate;
+1 => buf.loop;
 
-
-fun void playFile() {
-    if (AUDIO_MODE != 1) return;
-
-    TriOsc rateMod(0.01) => blackhole;
-    0.5 => buf.gain;
-    0 => buf.pos;
-    1. => buf.rate;
-
-    while (true) {
-        Std.scalef(rateMod.last(), -1., 1., 0.08, 3.) => float rate;
-        rate => buf.rate;
-        1::ms => now;
-    }
-}
 
 // TODO: Bloom handling
 // GG.renderPass() --> BloomPass bloom_pass --> GG.outputPass();
@@ -111,9 +97,17 @@ class EnvelopeFollower {
     Gain edGain;
     OnePole edFilter;
 
-    fun @construct(Gain input) {
+    fun @construct() {
         // Envelope detection
-        input => edGain => edFilter => blackhole;
+        if (AUDIO_MODE == 0) {
+            adc => edGain;
+            adc => edGain;
+        } else if (AUDIO_MODE == 1) {
+            buf => edGain;
+            buf => edGain;
+        }
+
+        edGain => edFilter => blackhole;
         3 => edGain.op;
         0.999 => edFilter.pole;
 
@@ -141,6 +135,14 @@ class EnvelopeFollower {
 
     fun float getCurrSignalStrength() {
         return currStrength;
+    }
+
+    fun void chainFMOsc(FMOsc osc) {
+        osc.main => edGain;
+    }
+
+    fun void chainDetuneOsc(DetuneOsc osc) {
+        osc.main => edGain;
     }
 }
 
@@ -394,7 +396,8 @@ class Moon extends GGen {
             GG.nextFrame() => now;
             ef.getCurrSignalStrength() => float currStrength;
             // clip on low end
-            currStrength * Color.WHITE * intensity => moon.color;
+            // currStrength * Color.WHITE * intensity => moon.color;
+            Color.WHITE * intensity => moon.color;
         }
     }
 
@@ -793,18 +796,17 @@ class Bird extends GGen {
         if (idx == 0 || idx >= path.size() - 1) {
             pos.x => this.posX;
             pos.y => this.posY;
-            // 1::ms => now;
             GG.nextFrame() => now;
         } else {
             path[idx + 1] => vec2 nextPos;
+            path[idx - 1] => vec2 prevPos;
 
             (nextPos.x - pos.x) / moveSpeed => float stepX;
             ((nextPos.y - pos.y) + yStepSize) / moveSpeed => float stepY;
 
             while (this.posX() < nextPos.x) {
-                this.posX() + (stepX * GG.dt() * 1000)=> this.posX;
+                this.posX() + (stepX * GG.dt() * 1000) => this.posX;
                 this.posY() + (stepY * GG.dt() * 1000) => this.posY;
-                // 1::ms => now;
                 GG.nextFrame() => now;
             }
         }
@@ -1020,6 +1022,37 @@ class SingingBird extends Bird {
     //     me.exit();
     // }
 
+    fun void animateDance() {
+        while (this.onWire != 0) {
+            GG.nextFrame() => now;
+        }
+
+        SinOsc danceLFOX(1., Math.random2f(0.1, 1.0)) => blackhole;
+        SinOsc danceLFOY(1., Math.random2f(0.1, 1.0)) => blackhole;
+        SinOsc danceLFOJump(2.) => blackhole;
+
+        repeat(30) {
+            GG.nextFrame() => now;
+        }
+
+        this.posY() => float originalY;
+        while (this.onWire == 0) {
+            // Rotation
+            Std.scalef(danceLFOX.last(), -1., 1., -Math.PI / 8, Math.PI / 8) => float xAngle;
+            Std.scalef(danceLFOY.last(), -1., 1., -Math.PI / 8, Math.PI / 8) => float yAngle;
+            Std.scalef(danceLFOJump.last(), -1., 1., 0., 0.5) => float yDelta;
+            originalY + yDelta => this.posY;
+            xAngle => this.rotX;
+            yAngle => this.rotY;
+            GG.nextFrame() => now;
+        }
+
+        0. => this.rotX;
+        0. => this.rotY;
+        originalY => this.posY;
+        me.exit();
+    }
+
     fun void animateMovement(int startLanding, int endLanding, int endTakeoff) {
         startLanding => int startIdx;
         endLanding => int stopIdx;
@@ -1059,11 +1092,14 @@ class SingingBird extends Bird {
 
         // Set on wire
         0 => this.onWire;
+        spork ~ animateDance();
 
         // Waiting on the wire
         while (this.doneSinging != 0) {
             GG.nextFrame() => now;
         }
+
+        1 => this.onWire;
 
         // Starting idx is current idx on the wire, update new stoping idx
         stopIdx => startIdx;
@@ -1158,7 +1194,7 @@ class BirdGenerator {
         }
     }
 
-    fun void addBassBird(AudioProcessing dsp, BirdCoordinator bassBirds[]) {
+    fun void addBassBird(AudioProcessing dsp, EnvelopeFollower envFollower, BirdCoordinator bassBirds[]) {
         for (BirdCoordinator bassBird : bassBirds) {
             // Bird generation delay
             bassBird.delay => now;
@@ -1177,6 +1213,9 @@ class BirdGenerator {
             // Bass Bird Song
             FMOsc voice(220., 72., 66., 0.6);
             voice.mix => Gain dspGain;
+
+            // Env following
+            envFollower.chainFMOsc(voice);
 
             AudioProcessing birdDSP(dspGain);
             BirdSong song(birdDSP, voice, bassBird.seqs);
@@ -1204,7 +1243,7 @@ class BirdGenerator {
         3::minute => now;
     }
 
-    fun void addLeadBird(AudioProcessing dsp, BirdCoordinator leadBirds[]) {
+    fun void addLeadBird(AudioProcessing dsp, EnvelopeFollower envFollower, BirdCoordinator leadBirds[]) {
         for (BirdCoordinator leadBird : leadBirds) {
             // Bird generation delay
             leadBird.delay => now;
@@ -1223,6 +1262,9 @@ class BirdGenerator {
             // Bass Bird Song
             DetuneOsc voice(220., 1.0, false);
             voice.mix => Gain dspGain;
+
+            // Env following
+            envFollower.chainDetuneOsc(voice);
 
             AudioProcessing birdDSP(dspGain);
             BirdSong song(birdDSP, voice, leadBird.seqs);
@@ -1488,7 +1530,6 @@ class BirdSong {
         0. => pan.pan;
         osc.mix => pan => MASTER;
         osc.mix => PROCESSING_GAIN;
-        osc.mix => ENV_FOLLOWER_GAIN;
     }
 
     fun void setPan(float pan) {
@@ -1582,7 +1623,7 @@ Sequence bassSeqL2(
         new Note("D3", 1.5), new Note("C4", 1.), new Note("A3", 1.), new Note("F3", 0.5),
         new Note("D3", 1.5), new Note("C4", 1.), new Note("D4", 1.), new Note("Bb3", 0.5)
      ],
-    4
+    8
 );
 
 Sequence bassSeqR2(
@@ -1590,7 +1631,7 @@ Sequence bassSeqR2(
         new Note("A3", 1.5), new Note("F3", 1.), new Note("E3", 1.), new Note("Bb3", 0.5),
         new Note("A3", 1.5), new Note("F3", 1.), new Note("E3", 1.), new Note("C3", 0.5)
      ],
-    4
+    8
 );
 
 // Lead Sequences
@@ -1647,8 +1688,8 @@ Sequence lead2Seq3C(
 
 
 // Bass
-[bassSeqL1, bassSeqL2] @=> Sequence bassL1[];
-[bassSeqR1, bassSeqR2] @=> Sequence bassR1[];
+[bassSeqL1, bassSeqL2, bassSeqL1] @=> Sequence bassL1[];
+[bassSeqR1, bassSeqR2, bassSeqR1] @=> Sequence bassR1[];
 
 
 // Leads
@@ -1656,22 +1697,22 @@ Sequence lead2Seq3C(
 [lead2Seq1A] @=> Sequence lead1B[];
 
 [lead1SeqB] @=> Sequence lead2A[];
-[lead2Seq2B, lead2Seq3C] @=> Sequence lead2B[];
+[lead2Seq2B, lead2Seq3C, lead2Seq2B, lead2Seq3C] @=> Sequence lead2B[];
 
 
 // ***************** //
 // BIRD COORDINATION //
 // ***************** //
 [
-    new BirdCoordinator(300, 2::second, bassL1),
+    new BirdCoordinator(300, 5::second, bassL1),
     new BirdCoordinator(700, 4::second, bassR1),
 ] @=> BirdCoordinator bassBirds[];
 
 
 [
-    new BirdCoordinator(400, 17::second, lead1A),
+    new BirdCoordinator(400, 20::second, lead1A),
     new BirdCoordinator(500, 7::second, lead1B),
-    new BirdCoordinator(250, 22::second, lead2A),
+    new BirdCoordinator(250, 22.5::second, lead2A),
     new BirdCoordinator(750, 7::second, lead2B),
 ] @=> BirdCoordinator leadBirds[];
 
@@ -1686,7 +1727,7 @@ adc => TEST_INPUT;
 // ADC objects
 AudioProcessing mainDSP(PROCESSING_GAIN);
 mainDSP.setSlew(0.4);
-EnvelopeFollower envFollower(ENV_FOLLOWER_GAIN);
+EnvelopeFollower envFollower();
 
 // Graphics objects
 SkyBox sky(30::second);
@@ -1713,8 +1754,8 @@ spork ~ sky.moon.glow(envFollower);
 
 // Bird movement shreds
 spork ~ birdGen.addFlyindBird(mainDSP);
-spork ~ birdGen.addBassBird(mainDSP, bassBirds);
-spork ~ birdGen.addLeadBird(mainDSP, leadBirds);
+spork ~ birdGen.addBassBird(mainDSP, envFollower, bassBirds);
+spork ~ birdGen.addLeadBird(mainDSP, envFollower, leadBirds);
 
 
 // **** //
