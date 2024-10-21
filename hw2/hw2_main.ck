@@ -1040,15 +1040,21 @@ class SingingBird extends Bird {
             // Rotation
             Std.scalef(danceLFOX.last(), -1., 1., -Math.PI / 8, Math.PI / 8) => float xAngle;
             Std.scalef(danceLFOY.last(), -1., 1., -Math.PI / 8, Math.PI / 8) => float yAngle;
-            Std.scalef(danceLFOJump.last(), -1., 1., 0., 0.5) => float yDelta;
-            originalY + yDelta => this.posY;
+            Std.scalef(danceLFOY.last(), -1., 1., 0, Math.PI / 8) => float zAngle;
             xAngle => this.rotX;
             yAngle => this.rotY;
+            zAngle => this.rotZ;
+
+            // Position
+            Std.scalef(danceLFOJump.last(), -1., 1., 0., 0.5) => float yDelta;
+            originalY + yDelta => this.posY;
+
             GG.nextFrame() => now;
         }
 
         0. => this.rotX;
         0. => this.rotY;
+        0. => this.rotZ;
         originalY => this.posY;
         me.exit();
     }
@@ -1652,7 +1658,7 @@ Sequence lead1SeqB(
         new Note("D4", 1.), new Note("R", 0.5), new Note("D4", 0.5),  new Note("R", 0.5), new Note("D4", 0.5),  new Note("R", 0.5), new Note("Eb4", 0.5),
         new Note("D4", 1.), new Note("R", 0.5), new Note("D4", 0.5),  new Note("R", 0.5), new Note("F4", 1.),  new Note("Eb4", 0.5)
      ],
-    4
+    3
 );
 
 
