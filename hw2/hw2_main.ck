@@ -49,6 +49,7 @@ GG.scene().light() @=> GLight sceneLight;
 // Global audio
 Gain MASTER[2] => dac;
 Gain PROCESSING_GAIN;
+Gain ENV_FOLLOWER_GAIN;
 
 // Handle audio source
 0 => int AUDIO_MODE;
@@ -92,7 +93,7 @@ fun void playFile() {
 fun void scaleVectorArray(vec2 v[], float xScale, float yScale, float xShift, float yShift) {
     for (int idx; idx < v.size(); idx++) {
         v[idx] => vec2 currVec;
-        @((currVec.x + xShift) * xScale, (currVec.y + yShift)* yScale) => v[idx];
+        @((currVec.x + xShift) * xScale, (currVec.y + yShift) * yScale) => v[idx];
     }
 }
 
@@ -110,17 +111,9 @@ class EnvelopeFollower {
     Gain edGain;
     OnePole edFilter;
 
-    fun @construct() {
+    fun @construct(Gain input) {
         // Envelope detection
-        if (AUDIO_MODE == 0) {
-            adc => edGain;
-            adc => edGain;
-        } else if (AUDIO_MODE == 1) {
-            buf => edGain;
-            buf => edGain;
-        }
-
-        edGain => edFilter => blackhole;
+        input => edGain => edFilter => blackhole;
         3 => edGain.op;
         0.999 => edFilter.pole;
 
@@ -170,7 +163,11 @@ class AudioProcessing {
     complex response[0];
     vec2 prevWaveform[WINDOW_SIZE];
     vec2 waveform[WINDOW_SIZE];
+    vec2 interpWaveform[WINDOW_SIZE];
     vec2 spectrum[WINDOW_SIZE];
+
+    // interpolation
+    float slew;
 
     // Keep track of spectrum history
     vec2 spectrumHistory[HISTORY_SIZE][WINDOW_SIZE];
@@ -195,6 +192,12 @@ class AudioProcessing {
         // get a reference for our window for visual tapering of the waveform
         Windowing.hann(WINDOW_SIZE) @=> window;
 
+        // interpolation
+        1. => slew;
+    }
+
+    fun void setSlew(float slew) {
+        slew => this.slew;
     }
 
     fun void map2waveform() {
@@ -227,15 +230,19 @@ class AudioProcessing {
         }
     }
 
-    fun vec2[] getInterpolatedWaveform(float slew) {
-        vec2 interpWaveform[WINDOW_SIZE];
-
+    fun void updateInterpolatedWaveform() {
         for (int idx; idx < WINDOW_SIZE; idx++) {
-            prevWaveform[idx] + slew * (waveform[idx] - prevWaveform[idx]) => interpWaveform[idx];
-            waveform[idx] => prevWaveform[idx];
-        }
+            this.waveform[idx] @=> vec2 currWave;
 
-        return interpWaveform;
+            this.prevWaveform[idx].x + (currWave.x - this.prevWaveform[idx].x) * slew => float interpX;
+            this.prevWaveform[idx].y + (currWave.y - this.prevWaveform[idx].y) * slew => float interpY;
+
+            interpX => interpWaveform[idx].x;
+            interpY => interpWaveform[idx].y;
+
+            currWave.x => this.prevWaveform[idx].x;
+            currWave.y => this.prevWaveform[idx].y;
+        }
     }
 
     fun void updateSpectrumHistory() {
@@ -298,6 +305,8 @@ class AudioProcessing {
             map2waveform();
             // map to spectrum display
             map2spectrum();
+            // interpolated waveform
+            updateInterpolatedWaveform();
             // store latest spectrum in history
             updateSpectrumHistory();
             // next graphics frame
@@ -402,7 +411,7 @@ class SkyBox {
     SinOsc dayNightCycleLFO => blackhole;
     Phasor dayNightCyclePhase => blackhole;
 
-    @(0., -1.5, -4.) => vec3 skyAnchor;
+    @(0., -1.5, -2.) => vec3 skyAnchor;
     @(0.4, 0.749, 1.) => vec3 skyColor;
 
     Sun sun(skyAnchor);
@@ -718,7 +727,6 @@ class Bird extends GGen {
         linesWidth => pathGraphics.width;
 
         shiftZ => pathGraphics.posZ;
-        pathGraphics --> GG.scene();
 
         // Name the objects for easy UI debugging
         "Head" => head.name;
@@ -755,6 +763,8 @@ class Bird extends GGen {
     }
 
     fun drawPath(vec2 currPathGraphics[], int idx, float shiftY) {
+        pathGraphics --> GG.scene();
+
         @(path[idx].x, path[idx].y + shiftY) => vec2 pos;
         currPathGraphics << pos;
 
@@ -773,6 +783,8 @@ class Bird extends GGen {
             this.removePathSegment(currPathGraphics);
             GG.nextFrame() => now;
         }
+
+        pathGraphics --< GG.scene();
         me.exit();
     }
 
@@ -1476,6 +1488,7 @@ class BirdSong {
         0. => pan.pan;
         osc.mix => pan => MASTER;
         osc.mix => PROCESSING_GAIN;
+        osc.mix => ENV_FOLLOWER_GAIN;
     }
 
     fun void setPan(float pan) {
@@ -1547,12 +1560,13 @@ class BirdCoordinator {
 // ************** //
 // NOTE SEQUENCES //
 // ************** //
+// Bass Sequences
 Sequence bassSeqL1(
     [
         new Note("F3", 3.), new Note("A3", 0.5), new Note("G3", 0.5),
         new Note("D3", 2.), new Note("C4", 1.), new Note("A3", 1.)
      ],
-    6
+    10
 );
 
 Sequence bassSeqR1(
@@ -1560,21 +1574,48 @@ Sequence bassSeqR1(
         new Note("F2", 3.), new Note("E3", 0.5), new Note("G2", 0.5),
         new Note("D2", 2.), new Note("C3", 1.), new Note("E3", 1.)
     ],
+    8
+);
+
+Sequence bassSeqL2(
+    [
+        new Note("D3", 1.5), new Note("C4", 1.), new Note("A3", 1.), new Note("F3", 0.5),
+        new Note("D3", 1.5), new Note("C4", 1.), new Note("D4", 1.), new Note("Bb3", 0.5)
+     ],
     4
 );
 
+Sequence bassSeqR2(
+    [
+        new Note("A3", 1.5), new Note("F3", 1.), new Note("E3", 1.), new Note("Bb3", 0.5),
+        new Note("A3", 1.5), new Note("F3", 1.), new Note("E3", 1.), new Note("C3", 0.5)
+     ],
+    4
+);
 
-Sequence lead1Seq1(
+// Lead Sequences
+Sequence lead1SeqA(
     [
         new Note("F4", 0.5), new Note("G4", 0.5), new Note("A4", 0.5), new Note("Bb4", 1.),
         new Note("A4", 0.5), new Note("G4", 0.5), new Note("A4", 1.), new Note("D4", 0.5),
         new Note("F4", 1.), new Note("F5", 1.), new Note("D5", 1.)
      ],
+    6
+);
+
+
+Sequence lead1SeqB(
+    [
+        new Note("D4", 1.), new Note("R", 0.5), new Note("D4", 0.5),  new Note("R", 0.5), new Note("D4", 0.5),  new Note("R", 0.5), new Note("C4", 0.5),
+        new Note("D4", 1.), new Note("R", 0.5), new Note("D4", 0.5),  new Note("R", 0.5), new Note("D4", 0.5),  new Note("R", 0.5), new Note("C4", 0.5),
+        new Note("D4", 1.), new Note("R", 0.5), new Note("D4", 0.5),  new Note("R", 0.5), new Note("D4", 0.5),  new Note("R", 0.5), new Note("Eb4", 0.5),
+        new Note("D4", 1.), new Note("R", 0.5), new Note("D4", 0.5),  new Note("R", 0.5), new Note("F4", 1.),  new Note("Eb4", 0.5)
+     ],
     4
 );
 
 
-Sequence lead2Seq1(
+Sequence lead2Seq1A(
     [
         new Note("Bb5", 2.25), new Note("R", 0.75), new Note("A5", 0.5), new Note("F5", 0.5),
         new Note("G5", 2.), new Note("D6", 0.667), new Note("C6", 0.666), new Note("G5", 0.667),
@@ -1583,22 +1624,39 @@ Sequence lead2Seq1(
         new Note("F5", 0.334), new Note("Bb5", 0.333), new Note("C6", 0.333),
         new Note("G5", 0.334), new Note("D6", 0.333), new Note("F6", 0.333)
      ],
-    4
+    2
 );
 
-// Bass
-Sequence @ bassL1[1];
-Sequence @ bassR1[1];
 
-bassSeqL1 @=> bassL1[0];
-bassSeqR1 @=> bassR1[0];
+Sequence lead2Seq2B(
+    [
+        new Note("F5", 1.), new Note("R", 0.5), new Note("Eb5", 0.25), new Note("D4", 0.25),
+        new Note("Bb4", 0.5), new Note("D5", 0.5), new Note("Bb4", 1.)
+     ],
+    3
+);
+
+
+Sequence lead2Seq3C(
+    [
+        new Note("F5", 1.), new Note("R", 0.5), new Note("Eb5", 0.25), new Note("D4", 0.25),
+        new Note("Bb4", 0.5), new Note("G5", 0.5), new Note("F5", 0.75), new Note("R", 0.25)
+     ],
+    1
+);
+
+
+// Bass
+[bassSeqL1, bassSeqL2] @=> Sequence bassL1[];
+[bassSeqR1, bassSeqR2] @=> Sequence bassR1[];
+
 
 // Leads
-Sequence @ lead1[1];
-Sequence @ lead2[1];
+[lead1SeqA] @=> Sequence lead1A[];
+[lead2Seq1A] @=> Sequence lead1B[];
 
-lead1Seq1 @=> lead1[0];
-lead2Seq1 @=> lead2[0];
+[lead1SeqB] @=> Sequence lead2A[];
+[lead2Seq2B, lead2Seq3C] @=> Sequence lead2B[];
 
 
 // ***************** //
@@ -1611,8 +1669,10 @@ lead2Seq1 @=> lead2[0];
 
 
 [
-    new BirdCoordinator(400, 10::second, lead1),
-    new BirdCoordinator(500, 4::second, lead2),
+    new BirdCoordinator(400, 17::second, lead1A),
+    new BirdCoordinator(500, 7::second, lead1B),
+    new BirdCoordinator(250, 22::second, lead2A),
+    new BirdCoordinator(750, 7::second, lead2B),
 ] @=> BirdCoordinator leadBirds[];
 
 
@@ -1625,7 +1685,8 @@ adc => TEST_INPUT;
 
 // ADC objects
 AudioProcessing mainDSP(PROCESSING_GAIN);
-EnvelopeFollower envFollower();
+mainDSP.setSlew(0.4);
+EnvelopeFollower envFollower(ENV_FOLLOWER_GAIN);
 
 // Graphics objects
 SkyBox sky(30::second);
@@ -1645,7 +1706,7 @@ spork ~ envFollower.follow();
 
 // graphics shreds
 spork ~ sky.dayNightCycle();
-spork ~ wires.wireMovement(mainDSP.waveform);
+spork ~ wires.wireMovement(mainDSP.interpWaveform);
 spork ~ sky.sun.animateRays(mainDSP.waveform);
 spork ~ grass.animateGrass(mainDSP);
 spork ~ sky.moon.glow(envFollower);
