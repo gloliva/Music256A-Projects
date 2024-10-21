@@ -1675,7 +1675,7 @@ Sequence lead2Seq1A(
 );
 
 
-Sequence lead2Seq2B(
+Sequence lead2Seq2A(
     [
         new Note("F5", 1.), new Note("R", 0.5), new Note("Eb5", 0.25), new Note("D4", 0.25),
         new Note("Bb4", 0.5), new Note("D5", 0.5), new Note("Bb4", 1.)
@@ -1684,12 +1684,42 @@ Sequence lead2Seq2B(
 );
 
 
-Sequence lead2Seq3C(
+Sequence lead2Seq2B(
     [
         new Note("F5", 1.), new Note("R", 0.5), new Note("Eb5", 0.25), new Note("D4", 0.25),
         new Note("Bb4", 0.5), new Note("G5", 0.5), new Note("F5", 0.75), new Note("R", 0.25)
      ],
     1
+);
+
+
+Sequence lead3Seq1A(
+    [
+        new Note("Bb6", 0.334), new Note("A6", 0.333), new Note("G6", 0.333),
+        new Note("A6", 0.334), new Note("G6", 0.333), new Note("F6", 0.333),
+        new Note("G6", 0.334), new Note("F6", 0.333), new Note("Eb6", 0.333),
+        new Note("F6", 0.334), new Note("Eb6", 0.333), new Note("D6", 0.333),
+        new Note("Eb6", 0.334), new Note("D6", 0.333), new Note("C6", 0.333),
+        new Note("D6", 0.334), new Note("C6", 0.333), new Note("Bb5", 0.333),
+        new Note("C6", 0.334), new Note("Bb5", 0.333), new Note("A5", 0.333),
+        new Note("Bb5", 1.)
+     ],
+    4
+);
+
+
+Sequence lead3Seq2B(
+    [
+        new Note("Bb4", 0.334), new Note("C5", 0.333), new Note("D5", 0.333),
+        new Note("Bb4", 0.334), new Note("C5", 0.333), new Note("D5", 0.333),
+        new Note("Bb4", 0.334), new Note("C5", 0.333), new Note("D5", 0.333),
+        new Note("Bb4", 0.334), new Note("C5", 0.333), new Note("D5", 0.333),
+        new Note("Bb4", 0.334), new Note("C5", 0.333), new Note("F5", 0.333),
+        new Note("Bb4", 0.334), new Note("C5", 0.333), new Note("F5", 0.333),
+        new Note("Bb4", 0.334), new Note("C5", 0.333), new Note("F5", 0.333),
+        new Note("Bb4", 0.334), new Note("C5", 0.333), new Note("F5", 0.333),
+     ],
+    4
 );
 
 
@@ -1703,7 +1733,10 @@ Sequence lead2Seq3C(
 [lead2Seq1A] @=> Sequence lead1B[];
 
 [lead1SeqB] @=> Sequence lead2A[];
-[lead2Seq2B, lead2Seq3C, lead2Seq2B, lead2Seq3C] @=> Sequence lead2B[];
+[lead2Seq2A, lead2Seq2B, lead2Seq2A, lead2Seq2B] @=> Sequence lead2B[];
+
+[lead3Seq1A] @=> Sequence lead3A[];
+[lead3Seq2B] @=> Sequence lead3B[];
 
 
 // ***************** //
@@ -1718,8 +1751,12 @@ Sequence lead2Seq3C(
 [
     new BirdCoordinator(400, 20::second, lead1A),
     new BirdCoordinator(500, 7::second, lead1B),
+
     new BirdCoordinator(250, 22.5::second, lead2A),
     new BirdCoordinator(750, 7::second, lead2B),
+
+    new BirdCoordinator(175, 30::second, lead3A),
+    new BirdCoordinator(850, 1.5::second, lead3B),
 ] @=> BirdCoordinator leadBirds[];
 
 
