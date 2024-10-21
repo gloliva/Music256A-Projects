@@ -84,6 +84,40 @@ fun void scaleVectorArray(vec2 v[], float xScale, float yScale, float xShift, fl
 }
 
 
+fun void updatePathLanding(vec2 v[], int startIdx, int endIdx, float startVal, float endVal) {
+    endIdx - startIdx => int numSteps;
+    (endVal - startVal) / numSteps => float yDelta;
+
+    for (startIdx => int currIdx; currIdx < endIdx; currIdx++) {
+        v[currIdx] => vec2 currVec;
+        if (currIdx == startIdx) {
+            @(currVec.x, startVal) => v[currIdx];
+        } else if (currIdx == endIdx - 1) {
+            @(currVec.x, endVal) => v[currIdx];
+        } else {
+            @(currVec.x, currVec.y + ((currIdx - startIdx) * yDelta)) => v[currIdx];
+        }
+    }
+}
+
+
+fun void updatePathTakeoff(vec2 v[], int startIdx, int endIdx, float startVal, float endVal) {
+    endIdx - startIdx => int numSteps;
+    (endVal - startVal) / numSteps => float yDelta;
+
+    for (startIdx => int currIdx; currIdx < endIdx; currIdx++) {
+        v[currIdx] => vec2 currVec;
+        if (currIdx == startIdx) {
+            @(currVec.x, startVal) => v[currIdx];
+        } else if (currIdx == endIdx - 1) {
+            @(currVec.x, endVal) => v[currIdx];
+        } else {
+            @(currVec.x, currVec.y - ((endIdx - currIdx) * yDelta)) => v[currIdx];
+        }
+    }
+}
+
+
 // ************************ //
 // AUDIO PROCESSING CLASSES //
 // ************************ //
@@ -640,7 +674,8 @@ class Bird extends GGen {
     float rotateAmount;
 
     // movement
-    float moveSpeed;
+    float initialY;
+    int moveSpeed;
     float shiftY;
     float shiftZ;
     vec2 path[];
@@ -657,7 +692,7 @@ class Bird extends GGen {
     Shred animateWingShred;
     Shred animateMouthShred;
 
-    fun @construct(float flapPeriod, float moveSpeed, float shiftY, float shiftZ, vec2 movementPath[]) {
+    fun @construct(float flapPeriod, int moveSpeed, float shiftY, float shiftZ, vec2 movementPath[]) {
         // set member variables
         1 => inFlight;
         1 => mouthMoving;
@@ -665,6 +700,7 @@ class Bird extends GGen {
         1 => this.onWire;
         (2 * Math.PI) / (flapPeriod * 1000) => rotateAmount;
         moveSpeed => this.moveSpeed;
+        shiftY => this.initialY;
         shiftY => this.shiftY;
         shiftZ => this.shiftZ;
 
@@ -770,10 +806,10 @@ class Bird extends GGen {
         return newX / startingX;
     }
 
-    fun drawPath(vec2 currPathGraphics[], int idx, float shiftY) {
+    fun drawPath(vec2 currPathGraphics[], int idx) {
         pathGraphics --> GG.scene();
 
-        @(path[idx].x, path[idx].y + shiftY) => vec2 pos;
+        @(path[idx].x, path[idx].y) => vec2 pos;
         currPathGraphics << pos;
 
         currPathGraphics => pathGraphics.positions;
@@ -798,23 +834,9 @@ class Bird extends GGen {
 
     fun void moveForward(int idx, float yStepSize) {
         path[idx] => vec2 pos;
-        if (idx == 0 || idx >= path.size() - 1) {
-            pos.x => this.posX;
-            pos.y => this.posY;
-            GG.nextFrame() => now;
-        } else {
-            path[idx + 1] => vec2 nextPos;
-            path[idx - 1] => vec2 prevPos;
+        pos.x => this.posX;
+        pos.y => this.posY;
 
-            (nextPos.x - pos.x) / moveSpeed => float stepX;
-            ((nextPos.y - pos.y) + yStepSize) / moveSpeed => float stepY;
-
-            while (this.posX() < nextPos.x) {
-                this.posX() + (stepX * GG.dt() * 1000) => this.posX;
-                this.posY() + (stepY * GG.dt() * 1000) => this.posY;
-                GG.nextFrame() => now;
-            }
-        }
     }
 
     fun void animateWing() {
@@ -844,7 +866,7 @@ class Bird extends GGen {
 
 
 class FlyingBird extends Bird {
-    fun @construct(float flapPeriod, float moveSpeed, float shiftY, float shiftZ, vec2 movementPath[]) {
+    fun @construct(float flapPeriod, int moveSpeed, float shiftY, float shiftZ, vec2 movementPath[]) {
         Bird(flapPeriod, moveSpeed, shiftY, shiftZ, movementPath);
         "Flying Bird" => this.name;
     }
@@ -857,9 +879,13 @@ class FlyingBird extends Bird {
 
     fun void animateMovement() {
         // Move bird across the screen
-        for (int idx; idx < path.size(); idx++) {
+        0 => int prevIdx;
+        for (int idx; idx < path.size();) {
             this.moveForward(idx, 0.);
-            this.drawPath(currPathGraphics, idx, 0);
+            this.drawPath(currPathGraphics, idx);
+            idx => prevIdx;
+            idx + this.moveSpeed => idx;
+            GG.nextFrame() => now;
         }
 
         // Fade out path
@@ -885,7 +911,7 @@ class FlyingBird extends Bird {
 
 
 class SingingBird extends Bird {
-    fun @construct(float flapPeriod, float moveSpeed, float shiftY, float shiftZ, vec2 movementPath[]) {
+    fun @construct(float flapPeriod, int moveSpeed, float shiftY, float shiftZ, vec2 movementPath[]) {
         Bird(flapPeriod, moveSpeed, shiftY, shiftZ, movementPath);
         "Singing Bird" => this.name;
     }
@@ -1070,9 +1096,13 @@ class SingingBird extends Bird {
         endLanding => int stopIdx;
 
         // Handle straight forward movement
-        for (int idx; idx < startIdx; idx++) {
+        0 => int prevIdx;
+        for (int idx; idx < startIdx; ) {
             this.moveForward(idx, 0.);
-            this.drawPath(currPathGraphics, idx, 0);
+            this.drawPath(currPathGraphics, idx);
+            idx => prevIdx;
+            idx + this.moveSpeed => idx;
+            GG.nextFrame() => now;
         }
 
         // Calculate variables needed for landing
@@ -1087,10 +1117,17 @@ class SingingBird extends Bird {
         this.rotZ() => float startAngle;
         spork ~ animateRotation(startAngle, stopAngle);
 
+        // Update movement vector to land
+        updatePathLanding(path, startIdx, stopIdx, startY, yTarget);
+
         // Handle landing on the wire
-        for (startIdx => int idx; idx < stopIdx; idx++) {
+        0 => prevIdx;
+        for (startIdx => int idx; idx < stopIdx; ) {
             this.moveForward(idx, yStepSize);
-            this.drawPath(currPathGraphics, idx, ((idx - startIdx) * yStepSize));
+            this.drawPath(currPathGraphics, idx);
+            idx => prevIdx;
+            idx + this.moveSpeed => idx;
+            GG.nextFrame() => now;
         }
 
         // Reset rotation
@@ -1129,10 +1166,17 @@ class SingingBird extends Bird {
         this.rotZ() => startAngle;
         spork ~ animateRotation(startAngle, stopAngle);
 
+        // Update movement vector to takeoff
+        updatePathTakeoff(path, startIdx, stopIdx, startY, yTarget);
+
         // Taking off from the wire
-        for (startIdx => int idx; idx < stopIdx; idx++) {
+        0 => prevIdx;
+        for (startIdx => int idx; idx < stopIdx; ) {
             this.moveForward(idx, yStepSize);
-            this.drawPath(currPathGraphics, idx, (stopIdx - idx) * yStepSize * -1);
+            this.drawPath(currPathGraphics, idx);
+            idx => prevIdx;
+            idx + this.moveSpeed => idx;
+            GG.nextFrame() => now;
         }
 
         // Reset rotation
@@ -1140,9 +1184,13 @@ class SingingBird extends Bird {
         spork ~ animateRotation(startAngle, 0.);
 
         // Flying off the screen
-        for (stopIdx => int idx; idx < path.size(); idx++) {
+        0 => prevIdx;
+        for (stopIdx => int idx; idx < path.size(); ) {
             this.moveForward(idx, 0.);
-            this.drawPath(currPathGraphics, idx, 0);
+            this.drawPath(currPathGraphics, idx);
+            idx => prevIdx;
+            idx + this.moveSpeed => idx;
+            GG.nextFrame() => now;
         }
 
         // Fade out graphics path
@@ -1194,9 +1242,12 @@ class BirdGenerator {
             Math.random2f(-2., 5.) => float shiftY;
             Math.random2f(-6., 2.) => float shiftZ;
 
+            // movement speed
+            Math.exp2(Math.random2(0, 3))$int => int moveSpeed;
+
             // create new bird
             dsp.getLastNthSpectrum(0) @=> vec2 spectrum[];
-            FlyingBird bird(.5, 10., shiftY, shiftZ, spectrum);
+            FlyingBird bird(0.5, moveSpeed, shiftY, shiftZ, spectrum);
 
             Math.random2f(0.2, 0.6) => float scaleAmt;
             @(scaleAmt, scaleAmt, scaleAmt) => bird.sca;
@@ -1236,7 +1287,7 @@ class BirdGenerator {
 
             // create new bird
             dsp.getLastNthSpectrum(0) @=> vec2 flightPath[];
-            SingingBird bird(.5, 10., shiftY, shiftZ, flightPath);
+            SingingBird bird(.5, 2, shiftY, shiftZ, flightPath);
 
             // Add bird to bird coordinator
             bassBird.addBird(bird, song);
@@ -1285,7 +1336,7 @@ class BirdGenerator {
 
             // create new bird
             dsp.getLastNthSpectrum(0) @=> vec2 flightPath[];
-            SingingBird bird(.5, 10., shiftY, shiftZ, flightPath);
+            SingingBird bird(.5, 1, shiftY, shiftZ, flightPath);
 
             // Add bird to bird coordinator
             leadBird.addBird(bird, song);
@@ -1583,7 +1634,8 @@ class BirdCoordinator {
 
     fun void playSong() {
         while (bird.onWire != 0) {
-            0.5::second => now;
+            // 0.5::second => now;
+            1::second => now;
         }
 
         0.1 => this.song.setGain;
@@ -1620,7 +1672,7 @@ Sequence bassSeqL1(
         new Note("F3", 3.), new Note("A3", 0.5), new Note("G3", 0.5),
         new Note("D3", 2.), new Note("C4", 1.), new Note("A3", 1.)
      ],
-    10
+    11
 );
 
 Sequence bassSeqR1(
@@ -1628,7 +1680,7 @@ Sequence bassSeqR1(
         new Note("F2", 3.), new Note("E3", 0.5), new Note("G2", 0.5),
         new Note("D2", 2.), new Note("C3", 1.), new Note("E3", 1.)
     ],
-    8
+    9
 );
 
 Sequence bassSeqL2(
@@ -1647,6 +1699,39 @@ Sequence bassSeqR2(
     8
 );
 
+
+Sequence bassSeqL3(
+    [
+        new Note("F3", 3.), new Note("A3", 0.5), new Note("G3", 0.5),
+        new Note("D3", 2.), new Note("C4", 1.), new Note("A3", 1.)
+     ],
+    10
+);
+
+Sequence bassSeqR3(
+    [
+        new Note("F2", 3.), new Note("E3", 0.5), new Note("G2", 0.5),
+        new Note("D2", 2.), new Note("C3", 1.), new Note("E3", 1.)
+    ],
+    10
+);
+
+
+Sequence bassSeqL4(
+    [
+        new Note("F3", 1.), new Note("R", 3.)
+     ],
+    1
+);
+
+Sequence bassSeqR4(
+    [
+        new Note("F4", 1.), new Note("R", 3.)
+    ],
+    1
+);
+
+
 // Lead Sequences
 Sequence lead1SeqA(
     [
@@ -1654,7 +1739,7 @@ Sequence lead1SeqA(
         new Note("A4", 0.5), new Note("G4", 0.5), new Note("A4", 1.), new Note("D4", 0.5),
         new Note("F4", 1.), new Note("F5", 1.), new Note("D5", 1.)
      ],
-    6
+    7
 );
 
 
@@ -1731,8 +1816,8 @@ Sequence lead3Seq2B(
 
 
 // Bass
-[bassSeqL1, bassSeqL2, bassSeqL1] @=> Sequence bassL1[];
-[bassSeqR1, bassSeqR2, bassSeqR1] @=> Sequence bassR1[];
+[bassSeqL1, bassSeqL2, bassSeqL3, bassSeqL4] @=> Sequence bassL1[];
+[bassSeqR1, bassSeqR2, bassSeqR3, bassSeqR4] @=> Sequence bassR1[];
 
 
 // Leads
@@ -1750,17 +1835,17 @@ Sequence lead3Seq2B(
 // BIRD COORDINATION //
 // ***************** //
 [
-    new BirdCoordinator(300, 5::second, bassL1),
-    new BirdCoordinator(700, 4::second, bassR1),
+    new BirdCoordinator(300, 4::second, bassL1),
+    new BirdCoordinator(700, 5::second, bassR1),
 ] @=> BirdCoordinator bassBirds[];
 
 
 [
-    new BirdCoordinator(400, 20::second, lead1A),
-    new BirdCoordinator(500, 7::second, lead1B),
+    new BirdCoordinator(400, 16::second, lead1A),
+    new BirdCoordinator(500, 10::second, lead1B),
 
-    new BirdCoordinator(250, 22.5::second, lead2A),
-    new BirdCoordinator(750, 7::second, lead2B),
+    new BirdCoordinator(250, 22::second, lead2A),
+    new BirdCoordinator(750, 6::second, lead2B),
 
     new BirdCoordinator(175, 30::second, lead3A),
     new BirdCoordinator(850, 1.5::second, lead3B),
