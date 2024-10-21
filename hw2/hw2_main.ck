@@ -46,6 +46,10 @@ GG.scene().light() @=> GLight sceneLight;
 120. => float TEMPO;
 (60. / TEMPO)::second => dur QUARTER_NOTE;
 
+// Global audio
+Gain MASTER[2] => dac;
+Gain PROCESSING_GAIN;
+
 // Handle audio source
 0 => int AUDIO_MODE;
 if(me.args()) {
@@ -359,7 +363,7 @@ class Moon extends GGen {
     // TODO: Sun and Moon should inherit from a CelestialBody class, lots of overlap
     // ADD bloom to moon and sun
     vec3 anchorPoint;
-    16 => float intensity;
+    32 => float intensity;
 
     GCircle moon;
 
@@ -398,7 +402,7 @@ class SkyBox {
     SinOsc dayNightCycleLFO => blackhole;
     Phasor dayNightCyclePhase => blackhole;
 
-    @(0., -1.5, -2.) => vec3 skyAnchor;
+    @(0., -1.5, -4.) => vec3 skyAnchor;
     @(0.4, 0.749, 1.) => vec3 skyColor;
 
     Sun sun(skyAnchor);
@@ -436,9 +440,8 @@ class SkyBox {
             // change lighting
             Std.scalef(dayNightCycleLFO.last(), -1., 1., 0.1, 1.) => float intensity;
             intensity => sceneLight.intensity;
-            // lightRotateAmount => sceneLight.rotateZ;
 
-            1::ms => now;
+            GG.nextFrame() => now;
         }
     }
 }
@@ -502,7 +505,6 @@ class Grass extends GGen {
     }
 
     fun void animateGrass(AudioProcessing dsp) {
-    // fun void animateGrass(vec2 spectrum[]) {
         while (true) {
             GG.nextFrame() => now;
 
@@ -634,7 +636,6 @@ class Bird extends GGen {
     GLines pathGraphics;
 
     // song
-    BirdSong song;
     int doneSinging;
     int onWire;
 
@@ -644,17 +645,7 @@ class Bird extends GGen {
     Shred animateWingShred;
     Shred animateMouthShred;
 
-    fun @construct(BirdSong song, float flapPeriod, float moveSpeed, float shiftY, float shiftZ, vec2 movementPath[]) {
-        // Song variables
-        song @=> this.song;
-        this.setUp(flapPeriod, moveSpeed, shiftY, shiftZ, movementPath);
-    }
-
     fun @construct(float flapPeriod, float moveSpeed, float shiftY, float shiftZ, vec2 movementPath[]) {
-        this.setUp(flapPeriod, moveSpeed, shiftY, shiftZ, movementPath);
-    }
-
-    fun void setUp(float flapPeriod, float moveSpeed, float shiftY, float shiftZ, vec2 movementPath[]) {
         // set member variables
         1 => inFlight;
         1 => mouthMoving;
@@ -874,16 +865,12 @@ class FlyingBird extends Bird {
 
 
 class SingingBird extends Bird {
-    fun @construct(BirdSong song, float flapPeriod, float moveSpeed, float shiftY, float shiftZ, vec2 movementPath[]) {
-        Bird(song, flapPeriod, moveSpeed, shiftY, shiftZ, movementPath);
+    fun @construct(float flapPeriod, float moveSpeed, float shiftY, float shiftZ, vec2 movementPath[]) {
+        Bird(flapPeriod, moveSpeed, shiftY, shiftZ, movementPath);
         "Singing Bird" => this.name;
     }
 
     fun void animate(int startLanding, int endLanding, int endTakeoff) {
-        // Audio processing
-        spork ~ this.song.dsp.processInputAudio() @=> this.processAudioShred;
-        spork ~ this.song.dsp.processWaveformGraphics() @=> this.waveformGraphicsShred;
-
         // Animations
         spork ~ animateWing() @=> this.animateWingShred;
         spork ~ animateMouth() @=> this.animateMouthShred;
@@ -921,105 +908,105 @@ class SingingBird extends Bird {
         me.exit();
     }
 
-    fun void playSong() {
-        // Play songs
-        0.1 => this.song.setGain;
-        for (Sequence seq : this.song.seqs) {
-            // Create spectrum visuals
-            // spork ~ this.createSongSpectrum(seq);
+    // fun void playSong() {
+    //     // Play songs
+    //     0.1 => this.song.setGain;
+    //     for (Sequence seq : this.song.seqs) {
+    //         // Create spectrum visuals
+    //         // spork ~ this.createSongSpectrum(seq);
 
-            // Handle repeats
-            0 => int noteIdx;
-            0 => int repeats;
-            while (repeats < seq.repeats) {
-                seq.getNote(noteIdx) @=> Note note;
-                note.freq => this.song.osc.setFreq;
-                (noteIdx + 1) % seq.size => noteIdx;
-                if (noteIdx == 0) repeats++;
+    //         // Handle repeats
+    //         0 => int noteIdx;
+    //         0 => int repeats;
+    //         while (repeats < seq.repeats) {
+    //             seq.getNote(noteIdx) @=> Note note;
+    //             note.freq => this.song.osc.setFreq;
+    //             (noteIdx + 1) % seq.size => noteIdx;
+    //             if (noteIdx == 0) repeats++;
 
-                note.numBeats * QUARTER_NOTE => now;
-            }
-        }
+    //             note.numBeats * QUARTER_NOTE => now;
+    //         }
+    //     }
 
-        0.0 => this.song.setGain;
-    }
+    //     0.0 => this.song.setGain;
+    // }
 
-    fun void createSongSpectrum(Sequence seq) {
-        // TODO: handle repeats using spectrum
-        seq.length * QUARTER_NOTE => dur totalDur;
-        2 => int spectrumsPerSecond;
-        1::second / spectrumsPerSecond => dur interval;
+    // fun void createSongSpectrum(Sequence seq) {
+    //     // TODO: handle repeats using spectrum
+    //     seq.length * QUARTER_NOTE => dur totalDur;
+    //     2 => int spectrumsPerSecond;
+    //     1::second / spectrumsPerSecond => dur interval;
 
-        // handle repeats
-        now + totalDur => time totalTime;
-        now => time currTime;
-        while (currTime < totalTime) {
-            spork ~ this.animateSongSpectrum();
+    //     // handle repeats
+    //     now + totalDur => time totalTime;
+    //     now => time currTime;
+    //     while (currTime < totalTime) {
+    //         spork ~ this.animateSongSpectrum();
 
-            currTime + interval => currTime;
-            interval => now;
-        }
+    //         currTime + interval => currTime;
+    //         interval => now;
+    //     }
 
-        2::second => now;
-    }
+    //     2::second => now;
+    // }
 
-    fun void animateSongSpectrum() {
-        GLines spectrumGraphics;
-        vec2 spectrum[];
+    // fun void animateSongSpectrum() {
+    //     GLines spectrumGraphics;
+    //     vec2 spectrum[];
 
-        // Lifespan
-        1::ms => dur update;
-        4::second => dur delay;
+    //     // Lifespan
+    //     1::ms => dur update;
+    //     4::second => dur delay;
 
-        now + delay => time totalTime;
-        now => time currTime;
+    //     now + delay => time totalTime;
+    //     now => time currTime;
 
-        // Spectrum
-        this.birdColor * 10. => spectrumGraphics.color;
-        0.2 => spectrumGraphics.width;
-        @(0.2, 0.1, 1.) => vec3 fullSpectrumScale;
-        @(0., 0., 1.) => spectrumGraphics.sca;
-        spectrumGraphics --> this.head;
+    //     // Spectrum
+    //     this.birdColor * 10. => spectrumGraphics.color;
+    //     0.2 => spectrumGraphics.width;
+    //     @(0.2, 0.1, 1.) => vec3 fullSpectrumScale;
+    //     @(0., 0., 1.) => spectrumGraphics.sca;
+    //     spectrumGraphics --> this.head;
 
-        // Graphics Movement
-        15. => float xEnd;
-        delay / update => float numSteps;
-        xEnd / numSteps => float stepSize;
+    //     // Graphics Movement
+    //     15. => float xEnd;
+    //     delay / update => float numSteps;
+    //     xEnd / numSteps => float stepSize;
 
-        // Graphics scaling
-        0 => int shrink;
-        fullSpectrumScale.x / (numSteps / 2) => float xScaleStepSize;
-        fullSpectrumScale.y / (numSteps / 2) => float yScaleStepSize;
+    //     // Graphics scaling
+    //     0 => int shrink;
+    //     fullSpectrumScale.x / (numSteps / 2) => float xScaleStepSize;
+    //     fullSpectrumScale.y / (numSteps / 2) => float yScaleStepSize;
 
-        while (currTime < totalTime) {
-            // this.song.dsp.getLastNthSpectrum(0) @=> vec2 spectrum[];
-            this.song.dsp.waveform @=> vec2 spectrum[];
-            spectrum => spectrumGraphics.positions;
+    //     while (currTime < totalTime) {
+    //         // this.song.dsp.getLastNthSpectrum(0) @=> vec2 spectrum[];
+    //         this.song.dsp.waveform @=> vec2 spectrum[];
+    //         spectrum => spectrumGraphics.positions;
 
-            // Move spectrum
-            spectrumGraphics.posX() + stepSize => spectrumGraphics.posX;
+    //         // Move spectrum
+    //         spectrumGraphics.posX() + stepSize => spectrumGraphics.posX;
 
-            // Scale spectrum down
-            spectrumGraphics.sca() @=> vec3 currScale;
-            if ((currScale.x >= fullSpectrumScale.x)) {
-                1 => shrink;
-            }
-            if (shrink == 0) {
-                currScale.x + xScaleStepSize => spectrumGraphics.scaX;
-                currScale.y + yScaleStepSize => spectrumGraphics.scaY;
-            } else if (shrink == 1) {
-                currScale.x - xScaleStepSize => spectrumGraphics.scaX;
-                currScale.y - yScaleStepSize => spectrumGraphics.scaY;
-            }
+    //         // Scale spectrum down
+    //         spectrumGraphics.sca() @=> vec3 currScale;
+    //         if ((currScale.x >= fullSpectrumScale.x)) {
+    //             1 => shrink;
+    //         }
+    //         if (shrink == 0) {
+    //             currScale.x + xScaleStepSize => spectrumGraphics.scaX;
+    //             currScale.y + yScaleStepSize => spectrumGraphics.scaY;
+    //         } else if (shrink == 1) {
+    //             currScale.x - xScaleStepSize => spectrumGraphics.scaX;
+    //             currScale.y - yScaleStepSize => spectrumGraphics.scaY;
+    //         }
 
-            update + currTime => currTime;
-            update => now;
-        }
+    //         update + currTime => currTime;
+    //         update => now;
+    //     }
 
-        spectrumGraphics --< this.head;
+    //     spectrumGraphics --< this.head;
 
-        me.exit();
-    }
+    //     me.exit();
+    // }
 
     fun void animateMovement(int startLanding, int endLanding, int endTakeoff) {
         startLanding => int startIdx;
@@ -1062,7 +1049,6 @@ class SingingBird extends Bird {
         0 => this.onWire;
 
         // Waiting on the wire
-        // this.playSong();
         while (this.doneSinging != 0) {
             GG.nextFrame() => now;
         }
@@ -1117,7 +1103,6 @@ class SingingBird extends Bird {
         this.waveformGraphicsShred.exit();
         this.animateWingShred.exit();
         this.animateMouthShred.exit();
-        this.song.exit();
         me.exit();
     }
 
@@ -1161,42 +1146,6 @@ class BirdGenerator {
         }
     }
 
-    fun void addSingingBird(AudioProcessing dsp) {
-        startDelay => now;
-        while (true) {
-
-            // Get Starting Y value
-            Math.random2f(-2., 5.) => float shiftY;
-
-            // Get Z value
-            Math.random2(-1, 1) => int zDiff;
-            (0.75 * zDiff) + 1. => float shiftZ;
-
-            // Bird Song
-            FMOsc voice(220., 72., 66., 0.6);
-            // PulseOsc voice => Gain dspGain;
-            voice.mix => Gain dspGain;
-
-            AudioProcessing birdDSP(dspGain);
-            BirdSong song(birdDSP, voice, [new Sequence()]);
-
-            // create new bird
-            dsp.getLastNthSpectrum(0) @=> vec2 spectrum[];
-            SingingBird bird(song, .5, 10., shiftY, shiftZ, spectrum);
-
-            Math.random2f(0.2, 0.6) => float scaleAmt;
-            @(scaleAmt, scaleAmt, scaleAmt) => bird.sca;
-
-            // let it fly!
-            Math.random2(50, 200) => int startLanding;
-            Math.random2(250, 550) => int endLanding;
-            Math.random2(750, dsp.WINDOW_SIZE - 100) => int endTakeoff;
-
-            bird.animate(startLanding, endLanding, endTakeoff);
-            20::second => now;
-        }
-    }
-
     fun void addBassBird(AudioProcessing dsp, BirdCoordinator bassBirds[]) {
         for (BirdCoordinator bassBird : bassBirds) {
             // Bird generation delay
@@ -1223,7 +1172,7 @@ class BirdGenerator {
 
             // create new bird
             dsp.getLastNthSpectrum(0) @=> vec2 flightPath[];
-            SingingBird bird(song, .5, 10., shiftY, shiftZ, flightPath);
+            SingingBird bird(.5, 10., shiftY, shiftZ, flightPath);
 
             // Add bird to bird coordinator
             bassBird.addBird(bird, song);
@@ -1269,7 +1218,7 @@ class BirdGenerator {
 
             // create new bird
             dsp.getLastNthSpectrum(0) @=> vec2 flightPath[];
-            SingingBird bird(song, .5, 10., shiftY, shiftZ, flightPath);
+            SingingBird bird(.5, 10., shiftY, shiftZ, flightPath);
 
             // Add bird to bird coordinator
             leadBird.addBird(bird, song);
@@ -1304,6 +1253,10 @@ class CustomOsc {
 
     fun void exit() {
         // pass
+    }
+
+    fun void setGain(float g) {
+        g => this.mix.gain;
     }
 }
 
@@ -1511,7 +1464,6 @@ class Sequence {
 class BirdSong {
     AudioProcessing dsp;
     CustomOsc osc;
-    Gain gain[2];
     Pan2 pan;
     Sequence seqs[];
 
@@ -1520,10 +1472,10 @@ class BirdSong {
         osc @=> this.osc;
         seqs @=> this.seqs;
 
+        0. => this.setGain;
         0. => pan.pan;
-        0. => gain[0].gain;
-        0. => gain[1].gain;
-        osc.mix => pan => gain => dac;
+        osc.mix => pan => MASTER;
+        osc.mix => PROCESSING_GAIN;
     }
 
     fun void setPan(float pan) {
@@ -1535,8 +1487,7 @@ class BirdSong {
     }
 
     fun void setGain(float g) {
-        g => this.gain[0].gain;
-        g => this.gain[1].gain;
+        g => this.osc.setGain;
     }
 
     fun void exit() {
@@ -1587,6 +1538,7 @@ class BirdCoordinator {
 
         1::second => now;
         bird.setDoneSinging();
+        this.song.exit();
         me.exit();
     }
 }
@@ -1659,7 +1611,7 @@ lead2Seq1 @=> lead2[0];
 
 
 [
-    new BirdCoordinator(400, 2::second, lead1),
+    new BirdCoordinator(400, 10::second, lead1),
     new BirdCoordinator(500, 4::second, lead2),
 ] @=> BirdCoordinator leadBirds[];
 
@@ -1672,7 +1624,7 @@ Gain TEST_INPUT;
 adc => TEST_INPUT;
 
 // ADC objects
-AudioProcessing mainDSP(TEST_INPUT);
+AudioProcessing mainDSP(PROCESSING_GAIN);
 EnvelopeFollower envFollower();
 
 // Graphics objects
@@ -1700,9 +1652,8 @@ spork ~ sky.moon.glow(envFollower);
 
 // Bird movement shreds
 spork ~ birdGen.addFlyindBird(mainDSP);
-// spork ~ birdGen.addSingingBird(mainDSP);
 spork ~ birdGen.addBassBird(mainDSP, bassBirds);
-// spork ~ birdGen.addLeadBird(mainDSP, leadBirds);
+spork ~ birdGen.addLeadBird(mainDSP, leadBirds);
 
 
 // **** //
