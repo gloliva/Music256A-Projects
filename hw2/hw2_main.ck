@@ -1226,8 +1226,8 @@ class BirdGenerator {
             SingingBird bird(song, .5, 10., shiftY, shiftZ, flightPath);
 
             // Add bird to bird coordinator
-            bassBird.addBird(bird);
-            spork ~ bassBird.songCountdown();
+            bassBird.addBird(bird, song);
+            spork ~ bassBird.playSong();
 
             Math.random2f(0.2, 0.6) => float scaleAmt;
             @(0.6, 0.6, 0.6) => bird.sca;
@@ -1272,8 +1272,8 @@ class BirdGenerator {
             SingingBird bird(song, .5, 10., shiftY, shiftZ, flightPath);
 
             // Add bird to bird coordinator
-            leadBird.addBird(bird);
-            spork ~ leadBird.songCountdown();
+            leadBird.addBird(bird, song);
+            spork ~ leadBird.playSong();
 
             Math.random2f(0.2, 0.4) => float scaleAmt;
             @(scaleAmt, scaleAmt, scaleAmt) => bird.sca;
@@ -1530,6 +1530,10 @@ class BirdSong {
         pan => this.pan.pan;
     }
 
+    fun void setFreq(float freq) {
+        freq => this.osc.setFreq;
+    }
+
     fun void setGain(float g) {
         g => this.gain[0].gain;
         g => this.gain[1].gain;
@@ -1546,6 +1550,7 @@ class BirdCoordinator {
     dur delay;
     Sequence seqs[];
     SingingBird bird;
+    BirdSong song;
 
     fun @construct(int xLandingPos, dur delay, Sequence seqs[]) {
         xLandingPos => this.xLandingPos;
@@ -1553,18 +1558,32 @@ class BirdCoordinator {
         seqs @=> this.seqs;
     }
 
-    fun void addBird(SingingBird bird) {
+    fun void addBird(SingingBird bird, BirdSong song) {
         bird @=> this.bird;
+        song @=> this.song;
     }
 
-    fun void songCountdown() {
+    fun void playSong() {
         while (bird.onWire != 0) {
             0.5::second => now;
         }
 
-        for (Sequence seq: this.seqs) {
-            seq.length * QUARTER_NOTE => now;
+        0.1 => this.song.setGain;
+        for (Sequence seq : this.song.seqs) {
+            // Handle repeats
+            0 => int noteIdx;
+            0 => int repeats;
+            while (repeats < seq.repeats) {
+                seq.getNote(noteIdx) @=> Note note;
+                note.freq => this.song.setFreq;
+                (noteIdx + 1) % seq.size => noteIdx;
+                if (noteIdx == 0) repeats++;
+
+                note.numBeats * QUARTER_NOTE => now;
+            }
         }
+
+        0.0 => this.song.setGain;
 
         1::second => now;
         bird.setDoneSinging();
@@ -1683,7 +1702,7 @@ spork ~ sky.moon.glow(envFollower);
 spork ~ birdGen.addFlyindBird(mainDSP);
 // spork ~ birdGen.addSingingBird(mainDSP);
 spork ~ birdGen.addBassBird(mainDSP, bassBirds);
-spork ~ birdGen.addLeadBird(mainDSP, leadBirds);
+// spork ~ birdGen.addLeadBird(mainDSP, leadBirds);
 
 
 // **** //
