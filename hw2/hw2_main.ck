@@ -635,6 +635,8 @@ class Bird extends GGen {
 
     // song
     BirdSong song;
+    int doneSinging;
+    int onWire;
 
     // Shreds
     Shred processAudioShred;
@@ -656,6 +658,8 @@ class Bird extends GGen {
         // set member variables
         1 => inFlight;
         1 => mouthMoving;
+        1 => this.doneSinging;
+        1 => this.onWire;
         (2 * Math.PI) / (flapPeriod * 1000) => rotateAmount;
         moveSpeed => this.moveSpeed;
         shiftY => this.shiftY;
@@ -748,6 +752,10 @@ class Bird extends GGen {
         this --> GG.scene();
     }
 
+    fun void setDoneSinging() {
+        0 => this.doneSinging;
+    }
+
     fun float calculateScaleFactor(float startingX, float shiftZ) {
         @(0., 0.) => vec2 screenPos;
         mainCam.screenCoordToWorldPos(screenPos, mainCam.posZ() - shiftZ) @=> vec3 worldPos;
@@ -782,7 +790,8 @@ class Bird extends GGen {
         if (idx == 0 || idx >= path.size() - 1) {
             pos.x => this.posX;
             pos.y => this.posY;
-            1::ms => now;
+            // 1::ms => now;
+            GG.nextFrame() => now;
         } else {
             path[idx + 1] => vec2 nextPos;
 
@@ -790,9 +799,10 @@ class Bird extends GGen {
             ((nextPos.y - pos.y) + yStepSize) / moveSpeed => float stepY;
 
             while (this.posX() < nextPos.x) {
-                this.posX() + stepX => this.posX;
-                this.posY() + stepY => this.posY;
-                1::ms => now;
+                this.posX() + (stepX * GG.dt() * 1000)=> this.posX;
+                this.posY() + (stepY * GG.dt() * 1000) => this.posY;
+                // 1::ms => now;
+                GG.nextFrame() => now;
             }
         }
     }
@@ -1048,8 +1058,14 @@ class SingingBird extends Bird {
 
         spork ~ removePath(currPathGraphics);
 
+        // Set on wire
+        0 => this.onWire;
+
         // Waiting on the wire
-        this.playSong();
+        // this.playSong();
+        while (this.doneSinging != 0) {
+            GG.nextFrame() => now;
+        }
 
         // Starting idx is current idx on the wire, update new stoping idx
         stopIdx => startIdx;
@@ -1209,6 +1225,10 @@ class BirdGenerator {
             dsp.getLastNthSpectrum(0) @=> vec2 flightPath[];
             SingingBird bird(song, .5, 10., shiftY, shiftZ, flightPath);
 
+            // Add bird to bird coordinator
+            bassBird.addBird(bird);
+            spork ~ bassBird.songCountdown();
+
             Math.random2f(0.2, 0.6) => float scaleAmt;
             @(0.6, 0.6, 0.6) => bird.sca;
 
@@ -1250,6 +1270,10 @@ class BirdGenerator {
             // create new bird
             dsp.getLastNthSpectrum(0) @=> vec2 flightPath[];
             SingingBird bird(song, .5, 10., shiftY, shiftZ, flightPath);
+
+            // Add bird to bird coordinator
+            leadBird.addBird(bird);
+            spork ~ leadBird.songCountdown();
 
             Math.random2f(0.2, 0.4) => float scaleAmt;
             @(scaleAmt, scaleAmt, scaleAmt) => bird.sca;
@@ -1521,11 +1545,30 @@ class BirdCoordinator {
     int xLandingPos;
     dur delay;
     Sequence seqs[];
+    SingingBird bird;
 
     fun @construct(int xLandingPos, dur delay, Sequence seqs[]) {
         xLandingPos => this.xLandingPos;
         delay => this.delay;
         seqs @=> this.seqs;
+    }
+
+    fun void addBird(SingingBird bird) {
+        bird @=> this.bird;
+    }
+
+    fun void songCountdown() {
+        while (bird.onWire != 0) {
+            0.5::second => now;
+        }
+
+        for (Sequence seq: this.seqs) {
+            seq.length * QUARTER_NOTE => now;
+        }
+
+        1::second => now;
+        bird.setDoneSinging();
+        me.exit();
     }
 }
 
@@ -1640,7 +1683,7 @@ spork ~ sky.moon.glow(envFollower);
 spork ~ birdGen.addFlyindBird(mainDSP);
 // spork ~ birdGen.addSingingBird(mainDSP);
 spork ~ birdGen.addBassBird(mainDSP, bassBirds);
-// spork ~ birdGen.addLeadBird(mainDSP, leadBirds);
+spork ~ birdGen.addLeadBird(mainDSP, leadBirds);
 
 
 // **** //
