@@ -758,6 +758,11 @@ class Bird extends GGen {
         0 => this.doneSinging;
     }
 
+    fun void removeBird() {
+        this.body --< this;
+        this.head --< this;
+    }
+
     fun float calculateScaleFactor(float startingX, float shiftZ) {
         @(0., 0.) => vec2 screenPos;
         mainCam.screenCoordToWorldPos(screenPos, mainCam.posZ() - shiftZ) @=> vec3 worldPos;
@@ -859,6 +864,7 @@ class FlyingBird extends Bird {
 
         // Fade out path
         spork ~ this.removePath(currPathGraphics);
+        this.removeBird();
 
         // Wait for path removal to finish
         currPathGraphics.size() / 8 => int wait;
@@ -1141,6 +1147,7 @@ class SingingBird extends Bird {
 
         // Fade out graphics path
         spork ~ removePath(currPathGraphics);
+        this.removeBird();
 
         // Wait for path removal to finish
         currPathGraphics.size() / 8 => int wait;
