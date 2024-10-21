@@ -75,24 +75,6 @@ fun void playFile() {
     }
 }
 
-// Noise generation
-Noise noiz => BPF noizefilter => Gain noizeGain;
-fun void playNoise() {
-    if (AUDIO_MODE != 2) return;
-
-    noizeGain => dac;
-    TriOsc sweep(0.2) => blackhole;
-
-    noizefilter.set(5000, 0.80);
-    0.3 => noizeGain.gain;
-
-    while (true) {
-        Std.scalef(sweep.last(), -1., 1., 60, 8000) => float newFreq;
-        newFreq => noizefilter.freq;
-        1::ms => now;
-    }
-}
-
 // TODO: Bloom handling
 // GG.renderPass() --> BloomPass bloom_pass --> GG.outputPass();
 // bloom_pass.input(GG.renderPass().colorOutput());
@@ -132,9 +114,6 @@ class EnvelopeFollower {
         } else if (AUDIO_MODE == 1) {
             buf => edGain;
             buf => edGain;
-        } else if (AUDIO_MODE == 2) {
-            noizeGain => edGain;
-            noizeGain => edGain;
         }
 
         edGain => edFilter => blackhole;
@@ -657,6 +636,12 @@ class Bird extends GGen {
     // song
     BirdSong song;
 
+    // Shreds
+    Shred processAudioShred;
+    Shred waveformGraphicsShred;
+    Shred animateWingShred;
+    Shred animateMouthShred;
+
     fun @construct(BirdSong song, float flapPeriod, float moveSpeed, float shiftY, float shiftZ, vec2 movementPath[]) {
         // Song variables
         song @=> this.song;
@@ -778,15 +763,16 @@ class Bird extends GGen {
     }
 
     fun removePathSegment(vec2 currPathGraphics[]) {
-        currPathGraphics.popFront();
+        currPathGraphics.erase(0, 8);
         currPathGraphics => pathGraphics.positions;
     }
 
-    fun removePath(vec2 currPathGraphics[], dur segmentRemovalDur) {
-        currPathGraphics.size() => int end;
-        for (int idx; idx < end; idx++) {
+    fun removePath(vec2 currPathGraphics[]) {
+        currPathGraphics.size() => int size;
+        size / 8 => int repeats;
+        repeat (repeats) {
             this.removePathSegment(currPathGraphics);
-            segmentRemovalDur => now;
+            GG.nextFrame() => now;
         }
         me.exit();
     }
@@ -857,15 +843,21 @@ class FlyingBird extends Bird {
         }
 
         // Fade out path
-        1::ms => dur segmentRemovalDur;
-        spork ~ removePath(currPathGraphics, segmentRemovalDur);
-        me.yield();
-        segmentRemovalDur * currPathGraphics.size() => now;
+        spork ~ this.removePath(currPathGraphics);
+
+        // Wait for path removal to finish
+        currPathGraphics.size() / 8 => int wait;
+        repeat (wait) {
+            GG.nextFrame() => now;
+        }
 
         // Remove the bird and path graphics from the scene
         pathGraphics --< GG.scene();
         this --< GG.scene();
 
+        // Exit shreds
+        this.animateWingShred.exit();
+        this.animateMouthShred.exit();
         me.exit();
     }
 }
@@ -879,12 +871,12 @@ class SingingBird extends Bird {
 
     fun void animate(int startLanding, int endLanding, int endTakeoff) {
         // Audio processing
-        spork ~ this.song.dsp.processInputAudio();
-        spork ~ this.song.dsp.processWaveformGraphics();
+        spork ~ this.song.dsp.processInputAudio() @=> this.processAudioShred;
+        spork ~ this.song.dsp.processWaveformGraphics() @=> this.waveformGraphicsShred;
 
         // Animations
-        spork ~ animateWing();
-        spork ~ animateMouth();
+        spork ~ animateWing() @=> this.animateWingShred;
+        spork ~ animateMouth() @=> this.animateMouthShred;
         spork ~ animateMovement(startLanding, endLanding, endTakeoff);
     }
 
@@ -900,12 +892,22 @@ class SingingBird extends Bird {
         100. => float numSteps;
         ((stopAngle - startAngle) / numSteps) => float stepSize;
 
-        for (int currStep; currStep < numSteps; currStep++) {
-            currAngle + stepSize => currAngle;
-            currAngle => this.rotZ;
-            1::ms => now;
+        // Bad code :(
+        if (currAngle < stopAngle) {
+            while (currAngle < stopAngle) {
+                currAngle + (stepSize * GG.dt() * 500) => currAngle;
+                currAngle => this.rotZ;
+                GG.nextFrame() => now;
+            }
+        } else {
+            while (currAngle > stopAngle) {
+                currAngle + (stepSize * GG.dt() * 500) => currAngle;
+                currAngle => this.rotZ;
+                GG.nextFrame() => now;
+            }
         }
 
+        stopAngle => this.rotZ;
         me.exit();
     }
 
@@ -1028,7 +1030,8 @@ class SingingBird extends Bird {
 
         // Calculate landing rotation
         this.calculateRotation(startIdx, stopIdx, yStepSize, numSteps) => float stopAngle;
-        spork ~ animateRotation(this.rotZ(), stopAngle);
+        this.rotZ() => float startAngle;
+        spork ~ animateRotation(startAngle, stopAngle);
 
         // Handle landing on the wire
         for (startIdx => int idx; idx < stopIdx; idx++) {
@@ -1037,17 +1040,16 @@ class SingingBird extends Bird {
         }
 
         // Reset rotation
-        spork ~ animateRotation(this.rotZ(), 0.);
+        this.rotZ() => startAngle;
+        spork ~ animateRotation(startAngle, 0.);
 
         // Snap to wire
         yTarget => this.posY;
 
-        spork ~ removePath(currPathGraphics, 1::ms);
+        spork ~ removePath(currPathGraphics);
 
         // Waiting on the wire
-        1::second => now;
         this.playSong();
-        1::second => now;
 
         // Starting idx is current idx on the wire, update new stoping idx
         stopIdx => startIdx;
@@ -1062,7 +1064,8 @@ class SingingBird extends Bird {
 
         // Calculate takeoff rotation
         this.calculateRotation(startIdx, stopIdx, yStepSize, numSteps) => stopAngle;
-        spork ~ animateRotation(this.rotZ(), stopAngle);
+        this.rotZ() => startAngle;
+        spork ~ animateRotation(startAngle, stopAngle);
 
         // Taking off from the wire
         for (startIdx => int idx; idx < stopIdx; idx++) {
@@ -1071,7 +1074,8 @@ class SingingBird extends Bird {
         }
 
         // Reset rotation
-        spork ~ animateRotation(this.rotZ(), 0.);
+        this.rotZ() => startAngle;
+        spork ~ animateRotation(startAngle, 0.);
 
         // Flying off the screen
         for (stopIdx => int idx; idx < path.size(); idx++) {
@@ -1080,14 +1084,24 @@ class SingingBird extends Bird {
         }
 
         // Fade out graphics path
-        1::ms => dur segmentRemovalDur;
-        spork ~ removePath(currPathGraphics, segmentRemovalDur);
-        segmentRemovalDur * currPathGraphics.size() => now;
+        spork ~ removePath(currPathGraphics);
+
+        // Wait for path removal to finish
+        currPathGraphics.size() / 8 => int wait;
+        repeat (wait) {
+            GG.nextFrame() => now;
+        }
 
         // Remove the bird and path graphics from the scene
         pathGraphics --< GG.scene();
         this --< GG.scene();
 
+        // Exit shreds
+        this.processAudioShred.exit();
+        this.waveformGraphicsShred.exit();
+        this.animateWingShred.exit();
+        this.animateMouthShred.exit();
+        this.song.exit();
         me.exit();
     }
 
@@ -1173,7 +1187,7 @@ class BirdGenerator {
             bassBird.delay => now;
 
             // Get Starting Y value
-            Math.random2f(1.5, 5.) => float shiftY;
+            Math.random2f(1.5, 4.) => float shiftY;
 
             // Get Z value
             -1 => int zDiff;
@@ -1182,7 +1196,6 @@ class BirdGenerator {
             // Get Pan value
             bassBird.xLandingPos $ float / dsp.WINDOW_SIZE $ float => float landingRatio;
             Std.scalef(landingRatio, 0., 1., -1., 1.) => float panVal;
-            <<< "Pan", panVal, "Ratio", landingRatio >>>;
 
             // Bass Bird Song
             FMOsc voice(220., 72., 66., 0.6);
@@ -1197,11 +1210,53 @@ class BirdGenerator {
             SingingBird bird(song, .5, 10., shiftY, shiftZ, flightPath);
 
             Math.random2f(0.2, 0.6) => float scaleAmt;
-            @(scaleAmt, scaleAmt, scaleAmt) => bird.sca;
+            @(0.6, 0.6, 0.6) => bird.sca;
 
             // let it fly!
             Math.random2(50, 200) => int startLanding;
             bassBird.xLandingPos => int endLanding;
+            Math.random2(750, dsp.WINDOW_SIZE - 100) => int endTakeoff;
+
+            bird.animate(startLanding, endLanding, endTakeoff);
+        }
+
+        3::minute => now;
+    }
+
+    fun void addLeadBird(AudioProcessing dsp, BirdCoordinator leadBirds[]) {
+        for (BirdCoordinator leadBird : leadBirds) {
+            // Bird generation delay
+            leadBird.delay => now;
+
+            // Get Starting Y value
+            Math.random2f(1.5, 5.) => float shiftY;
+
+            // Get Z value
+            Math.random2(0, 1) => int zDiff;
+            (0.75 * zDiff) + 1. => float shiftZ;
+
+            // Get Pan value
+            leadBird.xLandingPos $ float / dsp.WINDOW_SIZE $ float => float landingRatio;
+            Std.scalef(landingRatio, 0., 1., -1., 1.) => float panVal;
+
+            // Bass Bird Song
+            DetuneOsc voice(220., 1.0, false);
+            voice.mix => Gain dspGain;
+
+            AudioProcessing birdDSP(dspGain);
+            BirdSong song(birdDSP, voice, leadBird.seqs);
+            panVal => song.setPan;
+
+            // create new bird
+            dsp.getLastNthSpectrum(0) @=> vec2 flightPath[];
+            SingingBird bird(song, .5, 10., shiftY, shiftZ, flightPath);
+
+            Math.random2f(0.2, 0.4) => float scaleAmt;
+            @(scaleAmt, scaleAmt, scaleAmt) => bird.sca;
+
+            // let it fly!
+            Math.random2(50, 200) => int startLanding;
+            leadBird.xLandingPos => int endLanding;
             Math.random2(750, dsp.WINDOW_SIZE - 100) => int endTakeoff;
 
             bird.animate(startLanding, endLanding, endTakeoff);
@@ -1222,6 +1277,10 @@ class CustomOsc {
     fun setFreq(float f) {
         <<< "NOT IMPLEMENTED ERROR: must override setFreq in parent class" >>>;
     }
+
+    fun void exit() {
+        // pass
+    }
 }
 
 
@@ -1234,6 +1293,9 @@ class FMOsc extends CustomOsc {
     float mainFreq;
     float modAmt;
     float ratio;
+
+    // Shred
+    Shred FMShred;
 
     fun @construct(float mainFreq, float modFreq, float modAmt, float initGain) {
         mainFreq => this.mainFreq;
@@ -1252,19 +1314,23 @@ class FMOsc extends CustomOsc {
         initGain => mix.gain;
 
         // start FM
-        spork ~ this.modFM();
+        spork ~ this.modFM() @=> this.FMShred;
     }
 
-    fun modFM() {
+    fun void modFM() {
         while (true) {
             (mod.last() * modAmt) + mainFreq => main.freq;
             1::samp => now;
         }
     }
 
-    fun setFreq(float f) {
+    fun void setFreq(float f) {
         f => this.mainFreq;
         f * this.ratio => mod.freq;
+    }
+
+    fun void exit() {
+        this.FMShred.exit();
     }
 }
 
@@ -1444,6 +1510,10 @@ class BirdSong {
         g => this.gain[0].gain;
         g => this.gain[1].gain;
     }
+
+    fun void exit() {
+        this.osc.exit();
+    }
 }
 
 
@@ -1527,7 +1597,7 @@ lead2Seq1 @=> lead2[0];
 
 
 [
-    new BirdCoordinator(400, 8::second, lead1),
+    new BirdCoordinator(400, 2::second, lead1),
     new BirdCoordinator(500, 4::second, lead2),
 ] @=> BirdCoordinator leadBirds[];
 
@@ -1570,22 +1640,20 @@ spork ~ sky.moon.glow(envFollower);
 spork ~ birdGen.addFlyindBird(mainDSP);
 // spork ~ birdGen.addSingingBird(mainDSP);
 spork ~ birdGen.addBassBird(mainDSP, bassBirds);
-
-// Audio shreds
-spork ~ playFile();
-spork ~ playNoise();
+// spork ~ birdGen.addLeadBird(mainDSP, leadBirds);
 
 
 // **** //
 // MAIN //
 // **** //
 while (true) {
-    // main loop
     GG.nextFrame() => now;
-
+    // UI
     if (UI.begin("Tutorial")) {
         // show a UI display of the current scenegraph
         UI.scenegraph(GG.scene());
     }
     UI.end();
 }
+
+5::minute => now;
