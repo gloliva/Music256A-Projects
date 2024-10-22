@@ -1,11 +1,7 @@
 /*
-    Homework 2
-
-    Birds fly around a nice green field
-
-    To set the mode, run:
-        `chuck hw2_main.ck:<mode number>`
-        e.g. `chuck hw2_main.ck:1`
+    Homework 2 Visualizer
+    Title: Musical Flight
+    Author: Gregg Oliva
 */
 
 // Window Setup
