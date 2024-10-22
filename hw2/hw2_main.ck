@@ -918,7 +918,7 @@ class SingingBird extends Bird {
         SinOsc danceLFOY(1., Math.random2f(0.1, 1.0)) => blackhole;
         SinOsc danceLFOJump(2.) => blackhole;
 
-        repeat(30) {
+        repeat(20) {
             GG.nextFrame() => now;
         }
 
@@ -1088,6 +1088,53 @@ class BirdGenerator {
     fun @construct(dur startDelay, dur birdFrequency) {
         startDelay => this.startDelay;
         birdFrequency => this.birdFrequency;
+    }
+
+    fun void birdIntro(AudioProcessing dsp) {
+        10 => int numTimes;
+        4. => float startY;
+        -3. => float endY;
+        (endY - startY) / numTimes => float step;
+
+        for (int curr; curr < numTimes; curr++) {
+            startY + (curr * step) => float shiftY;
+            -2. => float shiftZ;
+            8 => int moveSpeed;
+            0.2 => float slew;
+
+            // create new bird
+            dsp.getLastNthSpectrum(0) @=> vec2 spectrum[];
+            FlyingBird bird(0.5, moveSpeed, shiftY, shiftZ, slew, spectrum);
+
+            Math.random2f(0.2, 0.6) => float scaleAmt;
+            @(scaleAmt, scaleAmt, scaleAmt) => bird.sca;
+
+            // let it fly!
+            bird.animate();
+            0.5::second => now;
+        }
+
+        10::second => now;
+    }
+
+    fun void birdExit(AudioProcessing dsp) {
+        0. => float shiftY;
+        -2. => float shiftZ;
+        4 => int moveSpeed;
+        0.2 => float slew;
+
+        3::second => now;
+
+        // create new bird
+        dsp.getLastNthSpectrum(0) @=> vec2 spectrum[];
+        FlyingBird bird(0.5, moveSpeed, shiftY, shiftZ, slew, spectrum);
+
+        3. => float scaleAmt;
+        @(scaleAmt, scaleAmt, scaleAmt) => bird.sca;
+
+        // let it fly!
+        bird.animate();
+        20::second => now;
     }
 
     fun void addFlyindBird(AudioProcessing dsp) {
@@ -1781,6 +1828,10 @@ spork ~ sky.sun.animateRays(mainDSP.waveform);
 spork ~ grass.animateGrass(mainDSP);
 spork ~ sky.moon.glow(envFollower);
 
+
+1::second => now;
+spork ~ birdGen.birdIntro(mainDSP);
+
 // Bird movement shreds
 spork ~ birdGen.addFlyindBird(mainDSP);
 spork ~ birdGen.addBassBird(mainDSP, envFollower, bassBirds);
@@ -1794,4 +1845,5 @@ spork ~ birdGen.addLeadBird(mainDSP, envFollower, leadBirds);
 for (BirdCoordinator bassBird : bassBirds) {
     bassBird.song.rampFader(2::second, 0.);
 }
+birdGen.birdExit(mainDSP);
 20::second => now;
