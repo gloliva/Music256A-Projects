@@ -2,32 +2,10 @@
     Homework 2
 
     Birds fly around a nice green field
-    So much isn't done yet :(
-
-    Input Modes:
-        0 - DAC (default)
-        1 - SndBuf
-        2 - Noise
 
     To set the mode, run:
         `chuck hw2_main.ck:<mode number>`
         e.g. `chuck hw2_main.ck:1`
-
-    TODO: interpolate most animations (can I pass functions around...?)
-          also normalize waves
-          add bloom to sun and moon
-
-
-    TODO: IDEAS to Implement:
-        - Big birds are bass (LPF), medium birds are middle, small birds are highs (HPF)
-        - Take DFT per bird, so when it "sings" the spectrum flies out of its mouth (maybe at some sampling period)
-            - have the spectrum fly out and shrink (scale down) to fade away
-        - Daylight is more consenent, nightime is more disonant / minor sounds
-        - add interpolation to waves
-        - Pan birds left and right depending on where they are on the wire
-        - Use the spectral analysis as "bird feathers"
-        - Maybe interpolate them a bit so they "blow in the wind" but softly
-        - Have birds land on the wire and "sing" along with the music
 */
 
 // Window Setup
@@ -58,15 +36,6 @@ buf => PROCESSING_GAIN;
 0.8 => buf.gain;
 1. => buf.rate;
 1 => buf.loop;
-
-
-// TODO: Bloom handling
-// GG.renderPass() --> BloomPass bloom_pass --> GG.outputPass();
-// bloom_pass.input(GG.renderPass().colorOutput());
-// GG.outputPass().input(bloom_pass.colorOutput());
-// bloom_pass.intensity(0.9);
-// bloom_pass.radius(0.7);
-// bloom_pass.levels(9);
 
 
 // Helper Functions
@@ -346,6 +315,7 @@ class Sun extends GGen {
     fun @construct(vec3 sunAnchorPoint) {
         sunAnchorPoint => anchorPoint;
         anchorPoint => sun.pos;
+        @(1.5, 1.5, 1.5) => sun.sca;
         Color.YELLOW => sun.color;
 
         // setup to graphics
@@ -386,8 +356,6 @@ class Sun extends GGen {
 
 
 class Moon extends GGen {
-    // TODO: Sun and Moon should inherit from a CelestialBody class, lots of overlap
-    // ADD bloom to moon and sun
     vec3 anchorPoint;
     16 => float intensity;
 
@@ -396,6 +364,7 @@ class Moon extends GGen {
     fun @construct(vec3 moonAnchorPoint) {
         moonAnchorPoint => anchorPoint;
         anchorPoint => moon.pos;
+        @(1.5, 1.5, 1.5) => moon.sca;
         Color.WHITE => moon.color;
         Color.WHITE => moon.specular;
 
@@ -429,7 +398,7 @@ class SkyBox {
     SinOsc dayNightCycleLFO => blackhole;
     Phasor dayNightCyclePhase => blackhole;
 
-    @(0., -1.5, -2.) => vec3 skyAnchor;
+    @(0., -2., -5.) => vec3 skyAnchor;
     @(0.4, 0.749, 1.) => vec3 skyColor;
 
     Sun sun(skyAnchor);
@@ -455,13 +424,13 @@ class SkyBox {
             // Move sun and moon
             Std.scalef(dayNightCyclePhase.last(), 0., 1., 0., 2. * Math.PI) => float angle;
             sun.move(
-                (Math.cos(angle) * 5.),
-                (Math.sin(angle) * 5.)
+                (Math.cos(angle) * 8.),
+                (Math.sin(angle) * 8.)
             );
 
             moon.move(
-                (Math.cos(angle + Math.PI) * 5.),
-                (Math.sin(angle + Math.PI) * 5.)
+                (Math.cos(angle + Math.PI) * 8.),
+                (Math.sin(angle + Math.PI) * 8.)
             );
 
             // change lighting
@@ -939,83 +908,6 @@ class SingingBird extends Bird {
         stopAngle => this.rotZ;
         me.exit();
     }
-
-    // fun void createSongSpectrum(Sequence seq) {
-    //     // TODO: handle repeats using spectrum
-    //     seq.length * QUARTER_NOTE => dur totalDur;
-    //     2 => int spectrumsPerSecond;
-    //     1::second / spectrumsPerSecond => dur interval;
-
-    //     // handle repeats
-    //     now + totalDur => time totalTime;
-    //     now => time currTime;
-    //     while (currTime < totalTime) {
-    //         spork ~ this.animateSongSpectrum();
-
-    //         currTime + interval => currTime;
-    //         interval => now;
-    //     }
-
-    //     2::second => now;
-    // }
-
-    // fun void animateSongSpectrum() {
-    //     GLines spectrumGraphics;
-    //     vec2 spectrum[];
-
-    //     // Lifespan
-    //     1::ms => dur update;
-    //     4::second => dur delay;
-
-    //     now + delay => time totalTime;
-    //     now => time currTime;
-
-    //     // Spectrum
-    //     this.birdColor * 10. => spectrumGraphics.color;
-    //     0.2 => spectrumGraphics.width;
-    //     @(0.2, 0.1, 1.) => vec3 fullSpectrumScale;
-    //     @(0., 0., 1.) => spectrumGraphics.sca;
-    //     spectrumGraphics --> this.head;
-
-    //     // Graphics Movement
-    //     15. => float xEnd;
-    //     delay / update => float numSteps;
-    //     xEnd / numSteps => float stepSize;
-
-    //     // Graphics scaling
-    //     0 => int shrink;
-    //     fullSpectrumScale.x / (numSteps / 2) => float xScaleStepSize;
-    //     fullSpectrumScale.y / (numSteps / 2) => float yScaleStepSize;
-
-    //     while (currTime < totalTime) {
-    //         // this.song.dsp.getLastNthSpectrum(0) @=> vec2 spectrum[];
-    //         this.song.dsp.waveform @=> vec2 spectrum[];
-    //         spectrum => spectrumGraphics.positions;
-
-    //         // Move spectrum
-    //         spectrumGraphics.posX() + stepSize => spectrumGraphics.posX;
-
-    //         // Scale spectrum down
-    //         spectrumGraphics.sca() @=> vec3 currScale;
-    //         if ((currScale.x >= fullSpectrumScale.x)) {
-    //             1 => shrink;
-    //         }
-    //         if (shrink == 0) {
-    //             currScale.x + xScaleStepSize => spectrumGraphics.scaX;
-    //             currScale.y + yScaleStepSize => spectrumGraphics.scaY;
-    //         } else if (shrink == 1) {
-    //             currScale.x - xScaleStepSize => spectrumGraphics.scaX;
-    //             currScale.y - yScaleStepSize => spectrumGraphics.scaY;
-    //         }
-
-    //         update + currTime => currTime;
-    //         update => now;
-    //     }
-
-    //     spectrumGraphics --< this.head;
-
-    //     me.exit();
-    // }
 
     fun void animateDance() {
         while (this.onWire != 0) {
@@ -1898,8 +1790,8 @@ spork ~ birdGen.addLeadBird(mainDSP, envFollower, leadBirds);
 // **** //
 // PLAY //
 // **** //
-122::second => now;
+124::second => now;
 for (BirdCoordinator bassBird : bassBirds) {
-    bassBird.song.rampFader(1::second, 0.);
+    bassBird.song.rampFader(2::second, 0.);
 }
 20::second => now;
