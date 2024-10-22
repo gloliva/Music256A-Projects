@@ -1547,7 +1547,7 @@ class BirdSong {
     AudioProcessing dsp;
     CustomOsc osc;
     Pan2 pan;
-    Evnelope fader;
+    Envelope fader;
     Sequence seqs[];
 
     fun @construct(AudioProcessing dsp, CustomOsc osc, Sequence seqs[]) {
@@ -1557,8 +1557,12 @@ class BirdSong {
 
         0. => this.setGain;
         0. => pan.pan;
-        osc.mix => pan => MASTER;
+        osc.mix => fader => pan => MASTER;
         osc.mix => PROCESSING_GAIN;
+    }
+
+    fun void rampFader(dur ramp, float val) {
+        fader.ramp(ramp, val);
     }
 
     fun void setPan(float pan) {
@@ -1582,6 +1586,8 @@ class BirdSong {
 class BirdCoordinator {
     int xLandingPos;
     dur delay;
+    dur attack;
+    float initGain;
     Sequence seqs[];
     SingingBird bird;
     BirdSong song;
@@ -1589,6 +1595,24 @@ class BirdCoordinator {
     fun @construct(int xLandingPos, dur delay, Sequence seqs[]) {
         xLandingPos => this.xLandingPos;
         delay => this.delay;
+        0::ms => this.attack;
+        0.1 => this.initGain;
+        seqs @=> this.seqs;
+    }
+
+    fun @construct(int xLandingPos, dur delay, dur attack, Sequence seqs[]) {
+        xLandingPos => this.xLandingPos;
+        delay => this.delay;
+        attack => this.attack;
+        0.1 => this.initGain;
+        seqs @=> this.seqs;
+    }
+
+    fun @construct(int xLandingPos, dur delay, dur attack, float initGain, Sequence seqs[]) {
+        xLandingPos => this.xLandingPos;
+        delay => this.delay;
+        attack => this.attack;
+        initGain => this.initGain;
         seqs @=> this.seqs;
     }
 
@@ -1602,7 +1626,11 @@ class BirdCoordinator {
             1::second => now;
         }
 
-        0.1 => this.song.setGain;
+        // Turn on voice
+        this.initGain => this.song.setGain;
+        this.song.rampFader(this.attack, 1.);
+
+        // Play notes
         for (Sequence seq : this.song.seqs) {
             // Handle repeats
             0 => int noteIdx;
@@ -1618,6 +1646,8 @@ class BirdCoordinator {
         }
 
         0.0 => this.song.setGain;
+
+        <<< "Current elapsed time", (now - START) / second >>>;
 
         1::second => now;
         bird.setDoneSinging();
@@ -1683,21 +1713,21 @@ Sequence bassSeqR3(
 
 Sequence bassSeqL4(
     [
-        new Note("F3", 2.), new Note("R", 3.)
+        new Note("F3", 4.)
      ],
     1
 );
 
 Sequence bassSeqC4(
     [
-        new Note("C4", 2.), new Note("R", 3.)
+        new Note("C4", 4.)
      ],
     1
 );
 
 Sequence bassSeqR4(
     [
-        new Note("F3", 2.), new Note("R", 3.)
+        new Note("F3", 4.)
     ],
     1
 );
@@ -1807,9 +1837,9 @@ Sequence lead3Seq2B(
 // BIRD COORDINATION //
 // ***************** //
 [
-    new BirdCoordinator(300, 4::second, bassL1),
-    new BirdCoordinator(700, 5::second, bassR1),
-    new BirdCoordinator(500, 108::second, bassC1),
+    new BirdCoordinator(300, 4::second, 1::second, bassL1),
+    new BirdCoordinator(700, 5::second, 50::ms, bassR1),
+    new BirdCoordinator(500, 109::second, 50::ms, 0.05, bassC1),
 
 ] @=> BirdCoordinator bassBirds[];
 
@@ -1818,8 +1848,8 @@ Sequence lead3Seq2B(
     new BirdCoordinator(400, 16::second, lead1A),
     new BirdCoordinator(500, 10::second, lead1B),
 
-    new BirdCoordinator(250, 22::second, lead2A),
-    new BirdCoordinator(750, 6::second, lead2B),
+    new BirdCoordinator(250, 22::second, 0::ms, 0.15, lead2A),
+    new BirdCoordinator(750, 6::second, 0::ms, 0.15, lead2B),
 
     new BirdCoordinator(175, 30::second, lead3A),
     new BirdCoordinator(850, 1.5::second, lead3B),
@@ -1845,6 +1875,8 @@ BirdGenerator birdGen(2::second, 3::second);
 // ************** //
 // PROGRAM SHREDS //
 // ************** //
+now => time START;
+
 // Audio processing shreds
 spork ~ mainDSP.processInputAudio();
 spork ~ mainDSP.processWaveformGraphics();
@@ -1864,16 +1896,10 @@ spork ~ birdGen.addLeadBird(mainDSP, envFollower, leadBirds);
 
 
 // **** //
-// MAIN //
+// PLAY //
 // **** //
-// while (true) {
-//     GG.nextFrame() => now;
-//     // UI
-//     if (UI.begin("Tutorial")) {
-//         // show a UI display of the current scenegraph
-//         UI.scenegraph(GG.scene());
-//     }
-//     UI.end();
-// }
-
-5::minute => now;
+122::second => now;
+for (BirdCoordinator bassBird : bassBirds) {
+    bassBird.song.rampFader(1::second, 0.);
+}
+20::second => now;
