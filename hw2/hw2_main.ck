@@ -50,12 +50,6 @@ GG.scene().light() @=> GLight sceneLight;
 Gain MASTER[2] => dac;
 Gain PROCESSING_GAIN;
 
-// Handle audio source
-0 => int AUDIO_MODE;
-if(me.args()) {
-    me.arg(0).toInt() => AUDIO_MODE;
-}
-
 
 // Play wind sound
 me.dir() + "wind.wav" => string filename;
@@ -133,21 +127,16 @@ class EnvelopeFollower {
 
     fun @construct() {
         // Envelope detection
-        if (AUDIO_MODE == 0) {
-            adc => edGain;
-            adc => edGain;
-        } else if (AUDIO_MODE == 1) {
-            buf => edGain;
-            buf => edGain;
-        }
 
-        edGain => edFilter => blackhole;
+        buf => edGain;
+        buf => edGain;
+        this.edGain => this.edFilter => blackhole;
         3 => edGain.op;
         0.999 => edFilter.pole;
 
-        0.6 => slewUp;
-        0.05 => slewDown;
-        0.8 => threshold;
+        0.6 => this.slewUp;
+        0.05 => this.slewDown;
+        0.8 => this.threshold;
     }
 
     fun void follow() {
@@ -169,14 +158,6 @@ class EnvelopeFollower {
 
     fun float getCurrSignalStrength() {
         return currStrength;
-    }
-
-    fun void chainFMOsc(FMOsc osc) {
-        osc.main => edGain;
-    }
-
-    fun void chainDetuneOsc(DetuneOsc osc) {
-        osc.main => edGain;
     }
 }
 
@@ -408,7 +389,7 @@ class Moon extends GGen {
     // TODO: Sun and Moon should inherit from a CelestialBody class, lots of overlap
     // ADD bloom to moon and sun
     vec3 anchorPoint;
-    32 => float intensity;
+    16 => float intensity;
 
     GCircle moon;
 
@@ -678,6 +659,8 @@ class Bird extends GGen {
     int moveSpeed;
     float shiftY;
     float shiftZ;
+    float slew;
+    float prevY;
     vec2 path[];
     vec2 currPathGraphics[0];
     GLines pathGraphics;
@@ -692,17 +675,19 @@ class Bird extends GGen {
     Shred animateWingShred;
     Shred animateMouthShred;
 
-    fun @construct(float flapPeriod, int moveSpeed, float shiftY, float shiftZ, vec2 movementPath[]) {
+    fun @construct(float flapPeriod, int moveSpeed, float shiftY, float shiftZ, float slew, vec2 movementPath[]) {
         // set member variables
         1 => inFlight;
         1 => mouthMoving;
         1 => this.doneSinging;
         1 => this.onWire;
         (2 * Math.PI) / (flapPeriod * 1000) => rotateAmount;
+        movementPath[0].y => this.prevY;
         moveSpeed => this.moveSpeed;
         shiftY => this.initialY;
         shiftY => this.shiftY;
         shiftZ => this.shiftZ;
+        slew => this.slew;
 
         // Handle X movement
         movementPath[0].x => float startingX;
@@ -832,12 +817,13 @@ class Bird extends GGen {
         me.exit();
     }
 
-    fun void moveForward(int idx, float yStepSize) {
+    fun void moveForward(int idx, float slew) {
         path[idx] => vec2 pos;
         pos.x => this.posX;
-        pos.y => this.posY;
-
-    }
+        this.prevY + ((pos.y - this.prevY) * slew) => float interpY;
+        interpY => this.posY;
+        interpY => this.prevY;
+}
 
     fun void animateWing() {
         TriOsc wingAnimator(1.) => blackhole;
@@ -866,8 +852,8 @@ class Bird extends GGen {
 
 
 class FlyingBird extends Bird {
-    fun @construct(float flapPeriod, int moveSpeed, float shiftY, float shiftZ, vec2 movementPath[]) {
-        Bird(flapPeriod, moveSpeed, shiftY, shiftZ, movementPath);
+    fun @construct(float flapPeriod, int moveSpeed, float shiftY, float shiftZ, float slew, vec2 movementPath[]) {
+        Bird(flapPeriod, moveSpeed, shiftY, shiftZ, slew, movementPath);
         "Flying Bird" => this.name;
     }
 
@@ -881,7 +867,7 @@ class FlyingBird extends Bird {
         // Move bird across the screen
         0 => int prevIdx;
         for (int idx; idx < path.size();) {
-            this.moveForward(idx, 0.);
+            this.moveForward(idx, this.slew);
             this.drawPath(currPathGraphics, idx);
             idx => prevIdx;
             idx + this.moveSpeed => idx;
@@ -911,8 +897,8 @@ class FlyingBird extends Bird {
 
 
 class SingingBird extends Bird {
-    fun @construct(float flapPeriod, int moveSpeed, float shiftY, float shiftZ, vec2 movementPath[]) {
-        Bird(flapPeriod, moveSpeed, shiftY, shiftZ, movementPath);
+    fun @construct(float flapPeriod, int moveSpeed, float shiftY, float shiftZ, float slew, vec2 movementPath[]) {
+        Bird(flapPeriod, moveSpeed, shiftY, shiftZ, slew, movementPath);
         "Singing Bird" => this.name;
     }
 
@@ -953,29 +939,6 @@ class SingingBird extends Bird {
         stopAngle => this.rotZ;
         me.exit();
     }
-
-    // fun void playSong() {
-    //     // Play songs
-    //     0.1 => this.song.setGain;
-    //     for (Sequence seq : this.song.seqs) {
-    //         // Create spectrum visuals
-    //         // spork ~ this.createSongSpectrum(seq);
-
-    //         // Handle repeats
-    //         0 => int noteIdx;
-    //         0 => int repeats;
-    //         while (repeats < seq.repeats) {
-    //             seq.getNote(noteIdx) @=> Note note;
-    //             note.freq => this.song.osc.setFreq;
-    //             (noteIdx + 1) % seq.size => noteIdx;
-    //             if (noteIdx == 0) repeats++;
-
-    //             note.numBeats * QUARTER_NOTE => now;
-    //         }
-    //     }
-
-    //     0.0 => this.song.setGain;
-    // }
 
     // fun void createSongSpectrum(Sequence seq) {
     //     // TODO: handle repeats using spectrum
@@ -1098,7 +1061,7 @@ class SingingBird extends Bird {
         // Handle straight forward movement
         0 => int prevIdx;
         for (int idx; idx < startIdx; ) {
-            this.moveForward(idx, 0.);
+            this.moveForward(idx, this.slew);
             this.drawPath(currPathGraphics, idx);
             idx => prevIdx;
             idx + this.moveSpeed => idx;
@@ -1123,7 +1086,7 @@ class SingingBird extends Bird {
         // Handle landing on the wire
         0 => prevIdx;
         for (startIdx => int idx; idx < stopIdx; ) {
-            this.moveForward(idx, yStepSize);
+            this.moveForward(idx, this.slew);
             this.drawPath(currPathGraphics, idx);
             idx => prevIdx;
             idx + this.moveSpeed => idx;
@@ -1172,7 +1135,7 @@ class SingingBird extends Bird {
         // Taking off from the wire
         0 => prevIdx;
         for (startIdx => int idx; idx < stopIdx; ) {
-            this.moveForward(idx, yStepSize);
+            this.moveForward(idx, this.slew);
             this.drawPath(currPathGraphics, idx);
             idx => prevIdx;
             idx + this.moveSpeed => idx;
@@ -1186,7 +1149,7 @@ class SingingBird extends Bird {
         // Flying off the screen
         0 => prevIdx;
         for (stopIdx => int idx; idx < path.size(); ) {
-            this.moveForward(idx, 0.);
+            this.moveForward(idx, this.slew);
             this.drawPath(currPathGraphics, idx);
             idx => prevIdx;
             idx + this.moveSpeed => idx;
@@ -1244,10 +1207,11 @@ class BirdGenerator {
 
             // movement speed
             Math.exp2(Math.random2(0, 3))$int => int moveSpeed;
+            Math.random2f(0.05, 1.) => float slew;
 
             // create new bird
             dsp.getLastNthSpectrum(0) @=> vec2 spectrum[];
-            FlyingBird bird(0.5, moveSpeed, shiftY, shiftZ, spectrum);
+            FlyingBird bird(0.5, moveSpeed, shiftY, shiftZ, slew, spectrum);
 
             Math.random2f(0.2, 0.6) => float scaleAmt;
             @(scaleAmt, scaleAmt, scaleAmt) => bird.sca;
@@ -1270,6 +1234,9 @@ class BirdGenerator {
             -1 => int zDiff;
             (0.75 * zDiff) + 1. => float shiftZ;
 
+            // Slew values
+            Math.random2f(0.1, 0.9) => float slew;
+
             // Get Pan value
             bassBird.xLandingPos $ float / dsp.WINDOW_SIZE $ float => float landingRatio;
             Std.scalef(landingRatio, 0., 1., -1., 1.) => float panVal;
@@ -1278,16 +1245,13 @@ class BirdGenerator {
             FMOsc voice(220., 72., 66., 0.6);
             voice.mix => Gain dspGain;
 
-            // Env following
-            envFollower.chainFMOsc(voice);
-
             AudioProcessing birdDSP(dspGain);
             BirdSong song(birdDSP, voice, bassBird.seqs);
             panVal => song.setPan;
 
             // create new bird
             dsp.getLastNthSpectrum(0) @=> vec2 flightPath[];
-            SingingBird bird(.5, 2, shiftY, shiftZ, flightPath);
+            SingingBird bird(.5, 2, shiftY, shiftZ, slew, flightPath);
 
             // Add bird to bird coordinator
             bassBird.addBird(bird, song);
@@ -1319,6 +1283,9 @@ class BirdGenerator {
             Math.random2(0, 1) => int zDiff;
             (0.75 * zDiff) + 1. => float shiftZ;
 
+            // Slew values
+            Math.random2f(0.3, 0.7) => float slew;
+
             // Get Pan value
             leadBird.xLandingPos $ float / dsp.WINDOW_SIZE $ float => float landingRatio;
             Std.scalef(landingRatio, 0., 1., -1., 1.) => float panVal;
@@ -1327,16 +1294,13 @@ class BirdGenerator {
             DetuneOsc voice(220., 1.0, false);
             voice.mix => Gain dspGain;
 
-            // Env following
-            envFollower.chainDetuneOsc(voice);
-
             AudioProcessing birdDSP(dspGain);
             BirdSong song(birdDSP, voice, leadBird.seqs);
             panVal => song.setPan;
 
             // create new bird
             dsp.getLastNthSpectrum(0) @=> vec2 flightPath[];
-            SingingBird bird(.5, 1, shiftY, shiftZ, flightPath);
+            SingingBird bird(.5, 1, shiftY, shiftZ, slew, flightPath);
 
             // Add bird to bird coordinator
             leadBird.addBird(bird, song);
@@ -1583,6 +1547,7 @@ class BirdSong {
     AudioProcessing dsp;
     CustomOsc osc;
     Pan2 pan;
+    Evnelope fader;
     Sequence seqs[];
 
     fun @construct(AudioProcessing dsp, CustomOsc osc, Sequence seqs[]) {
@@ -1634,7 +1599,6 @@ class BirdCoordinator {
 
     fun void playSong() {
         while (bird.onWire != 0) {
-            // 0.5::second => now;
             1::second => now;
         }
 
@@ -1719,14 +1683,21 @@ Sequence bassSeqR3(
 
 Sequence bassSeqL4(
     [
-        new Note("F3", 1.), new Note("R", 3.)
+        new Note("F3", 2.), new Note("R", 3.)
+     ],
+    1
+);
+
+Sequence bassSeqC4(
+    [
+        new Note("C4", 2.), new Note("R", 3.)
      ],
     1
 );
 
 Sequence bassSeqR4(
     [
-        new Note("F4", 1.), new Note("R", 3.)
+        new Note("F3", 2.), new Note("R", 3.)
     ],
     1
 );
@@ -1796,7 +1767,7 @@ Sequence lead3Seq1A(
         new Note("C6", 0.334), new Note("Bb5", 0.333), new Note("A5", 0.333),
         new Note("Bb5", 1.)
      ],
-    4
+    6
 );
 
 
@@ -1818,6 +1789,7 @@ Sequence lead3Seq2B(
 // Bass
 [bassSeqL1, bassSeqL2, bassSeqL3, bassSeqL4] @=> Sequence bassL1[];
 [bassSeqR1, bassSeqR2, bassSeqR3, bassSeqR4] @=> Sequence bassR1[];
+[bassSeqC4] @=> Sequence bassC1[];
 
 
 // Leads
@@ -1837,6 +1809,8 @@ Sequence lead3Seq2B(
 [
     new BirdCoordinator(300, 4::second, bassL1),
     new BirdCoordinator(700, 5::second, bassR1),
+    new BirdCoordinator(500, 108::second, bassC1),
+
 ] @=> BirdCoordinator bassBirds[];
 
 
@@ -1855,10 +1829,6 @@ Sequence lead3Seq2B(
 // ******************** //
 // OBJECT INSTANTIATION //
 // ******************** //
-// TODO: Remove when done testing
-Gain TEST_INPUT;
-adc => TEST_INPUT;
-
 // ADC objects
 AudioProcessing mainDSP(PROCESSING_GAIN);
 mainDSP.setSlew(0.4);
@@ -1896,14 +1866,14 @@ spork ~ birdGen.addLeadBird(mainDSP, envFollower, leadBirds);
 // **** //
 // MAIN //
 // **** //
-while (true) {
-    GG.nextFrame() => now;
-    // UI
-    if (UI.begin("Tutorial")) {
-        // show a UI display of the current scenegraph
-        UI.scenegraph(GG.scene());
-    }
-    UI.end();
-}
+// while (true) {
+//     GG.nextFrame() => now;
+//     // UI
+//     if (UI.begin("Tutorial")) {
+//         // show a UI display of the current scenegraph
+//         UI.scenegraph(GG.scene());
+//     }
+//     UI.end();
+// }
 
 5::minute => now;
