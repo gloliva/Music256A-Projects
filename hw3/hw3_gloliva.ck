@@ -15,23 +15,76 @@ mainCam.posZ(8.0);
 
 
 // Background
-Color.WHITE => GG.scene().backgroundColor;
+Color.BLACK => GG.scene().backgroundColor;
+
+
+// KeyPress
+class KeyPoller {
+    "BACKSLASH" => string BACKSLASH;
+
+    fun string[] getKeyPress() {
+        string keys[0];
+
+        // Letters
+        if (GWindow.keyDown(GWindow.Key_A)) keys << "A";
+        if (GWindow.keyDown(GWindow.Key_B)) keys << "B";
+        if (GWindow.keyDown(GWindow.Key_C)) keys << "C";
+        if (GWindow.keyDown(GWindow.Key_D)) keys << "D";
+        if (GWindow.keyDown(GWindow.Key_E)) keys << "E";
+        if (GWindow.keyDown(GWindow.Key_F)) keys << "F";
+        if (GWindow.keyDown(GWindow.Key_G)) keys << "G";
+        if (GWindow.keyDown(GWindow.Key_H)) keys << "H";
+        if (GWindow.keyDown(GWindow.Key_I)) keys << "I";
+        if (GWindow.keyDown(GWindow.Key_J)) keys << "J";
+        if (GWindow.keyDown(GWindow.Key_K)) keys << "K";
+        if (GWindow.keyDown(GWindow.Key_L)) keys << "L";
+        if (GWindow.keyDown(GWindow.Key_M)) keys << "M";
+        if (GWindow.keyDown(GWindow.Key_N)) keys << "N";
+        if (GWindow.keyDown(GWindow.Key_O)) keys << "O";
+        if (GWindow.keyDown(GWindow.Key_P)) keys << "P";
+        if (GWindow.keyDown(GWindow.Key_Q)) keys << "Q";
+        if (GWindow.keyDown(GWindow.Key_R)) keys << "R";
+        if (GWindow.keyDown(GWindow.Key_S)) keys << "S";
+        if (GWindow.keyDown(GWindow.Key_T)) keys << "T";
+        if (GWindow.keyDown(GWindow.Key_U)) keys << "U";
+        if (GWindow.keyDown(GWindow.Key_V)) keys << "V";
+        if (GWindow.keyDown(GWindow.Key_W)) keys << "W";
+        if (GWindow.keyDown(GWindow.Key_X)) keys << "X";
+        if (GWindow.keyDown(GWindow.Key_Y)) keys << "Y";
+        if (GWindow.keyDown(GWindow.Key_Z)) keys << "Z";
+
+        // Special characters
+        if (GWindow.keyDown(GWindow.Key_Backspace)) keys << this.BACKSLASH;
+
+        return keys;
+    }
+}
 
 
 // File Handling
 class WordSet {
-    string words[0];
-
-    fun @construct() {
-
-    }
+    int words[0];
+    int mapSize;
 
     fun void add(string word) {
-        this.words << word;
+        this.mapSize++;
+        1 => this.words[word];
     }
 
-    fun int contains(string word) {
-        return false;
+    fun int find(string word) {
+        return this.words.isInMap(word);
+    }
+
+    fun int size() {
+        return this.mapSize;
+    }
+
+    fun string getRandom() {
+        string keys[this.mapSize];
+        this.words.getKeys(keys);
+
+        Math.random2(0, this.mapSize - 1) => int idx;
+        return keys[idx];
     }
 }
 
@@ -222,7 +275,35 @@ class ChordleGrid extends GGen {
 
 // Chordle Game
 class ChordleGame {
+    int currRow;
+    int currCol;
 
+    int numRows;
+    int numCols;
+
+    // Grid
+    ChordleGrid grid;
+
+    // Winning words
+    WordSet wordSet;
+    string gameWord;
+
+    // This game is the active game
+    int isActive;
+
+    fun @construct(WordSet wordSet, int numRows, int numCols) {
+        wordSet @=> this.wordSet;
+        numRows => this.numRows;
+        numCols => this.numCols;
+
+        // Grid
+        new ChordleGrid(numRows, numCols) @=> this.grid;
+
+        // set member variables
+        0 => currRow;
+        0 => currCol;
+        0 => isActive;
+    }
 }
 
 
@@ -256,8 +337,24 @@ fun void testFile() {
 
     file.parseFile("5letters.txt") @=> WordSet set;
 
-    for (string word : set.words) {
-        <<< "Word", word >>>;
+    <<< "Words size: ", set.size() >>>;
+
+    repeat (4) {
+        set.getRandom() => string word;
+        <<< "Random Word", word >>>;
+    }
+}
+
+fun void testKeyboard() {
+    KeyPoller kp();
+
+    while (true) {
+        kp.getKeyPress() @=> string keys[];
+
+        for (string key : keys) {
+            <<< "Key: ", key >>>;
+        }
+        GG.nextFrame() => now;
     }
 }
 
@@ -268,4 +365,5 @@ grid.setLetter("C", 0, 1);
 
 spork ~ testRotate(grid);
 spork ~ testFile();
+spork ~ testKeyboard();
 main();
