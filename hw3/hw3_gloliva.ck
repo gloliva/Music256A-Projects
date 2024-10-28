@@ -18,6 +18,50 @@ mainCam.posZ(8.0);
 Color.WHITE => GG.scene().backgroundColor;
 
 
+// File Handling
+class WordSet {
+    string words[0];
+
+    fun @construct() {
+
+    }
+
+    fun void add(string word) {
+        this.words << word;
+    }
+
+    fun int contains(string word) {
+        return false;
+    }
+}
+
+
+class FileReader {
+    FileIO fio;
+
+    fun WordSet parseFile(string filename) {
+        WordSet set();
+
+        // Open file for reading
+        fio.open(filename, FileIO.READ);
+        if (!fio.good()) {
+            <<< "Failed to open file: ", filename >>>;
+            me.exit();
+        } else {
+            <<< "Successfully opened ", filename >>>;
+        }
+
+        // Read each line as a word
+        while (fio.more()) {
+            fio.readLine() => string word;
+            set.add(word);
+        }
+
+        return set;
+    }
+}
+
+
 // Chordle Grid
 class LetterBox extends GGen {
     GCube box;
@@ -176,6 +220,13 @@ class ChordleGrid extends GGen {
 }
 
 
+// Chordle Game
+class ChordleGame {
+
+}
+
+
+
 // main
 fun void main() {
     while (true) {
@@ -190,7 +241,7 @@ fun void main() {
 }
 
 // TEST
-fun void test(ChordleGrid grid) {
+fun void testRotate(ChordleGrid grid) {
     repeat(120) {
         GG.nextFrame() => now;
     }
@@ -200,10 +251,21 @@ fun void test(ChordleGrid grid) {
 
 }
 
+fun void testFile() {
+    FileReader file;
+
+    file.parseFile("5letters.txt") @=> WordSet set;
+
+    for (string word : set.words) {
+        <<< "Word", word >>>;
+    }
+}
+
 
 ChordleGrid grid(6, 5);
 grid.setLetter("X", 0, 0);
-grid.setLetter("X", 0, 1);
+grid.setLetter("C", 0, 1);
 
-spork ~ test(grid);
+spork ~ testRotate(grid);
+spork ~ testFile();
 main();
