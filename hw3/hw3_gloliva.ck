@@ -54,8 +54,15 @@ class SpecialKey extends Key {
 
 
 class KeyPoller {
+    // Special Characters
     "BACKSPACE" => string BACKSPACE;
     "ENTER" => string ENTER;
+
+    // Arrow Keys
+    "UP_ARROW" => string UP_ARROW;
+    "DOWN_ARROW" => string DOWN_ARROW;
+    "LEFT_ARROW" => string LEFT_ARROW;
+    "RIGHT_ARROW" => string RIGHT_ARROW;
 
     fun Key[] getKeyPress() {
         Key keys[0];
@@ -104,6 +111,11 @@ class KeyPoller {
         if (GWindow.keyDown(GWindow.Key_Backspace)) keys << new SpecialKey(this.BACKSPACE);
         if (GWindow.keyDown(GWindow.Key_Enter)) keys << new SpecialKey(this.ENTER);
 
+        if (GWindow.keyDown(GWindow.Key_Up)) keys << new SpecialKey(this.UP_ARROW);
+        if (GWindow.keyDown(GWindow.Key_Down)) keys << new SpecialKey(this.DOWN_ARROW);
+        if (GWindow.keyDown(GWindow.Key_Left)) keys << new SpecialKey(this.LEFT_ARROW);
+        if (GWindow.keyDown(GWindow.Key_Right)) keys << new SpecialKey(this.RIGHT_ARROW);
+
         return keys;
     }
 }
@@ -125,6 +137,12 @@ class WordSet {
 
     fun int size() {
         return this.mapSize;
+    }
+
+    fun string[] getWords() {
+        string keys[mapSize];
+        this.words.getKeys(keys);
+        return keys;
     }
 
     fun string getRandom() {
@@ -162,8 +180,9 @@ class FileReader {
     }
 }
 
-
-// Letter Matching Modes
+// ************* //
+// GAME HANDLING //
+// ************* //
 class BlockMode {
     static int NO_MATCH;
     static int EXACT_MATCH;
@@ -491,7 +510,23 @@ class ChordleGame {
 }
 
 
-// main
+// ************** //
+// AUDIO HANDLING //
+// ************** //
+SndBuf buffers[0];
+
+fun void loadBuffers(SndBuf buffers[], WordSet set) {
+    set.getWords() @=> string words[];
+    for (string word : words) {
+        word + ".wav" => string sampleFile;
+        new SndBuf(sampleFile) @=> buffers[word];
+    }
+}
+
+
+// ************ //
+// MAIN PROGRAM //
+// ************ //
 fun void main() {
     // Read in all words
     FileReader fr;
@@ -555,14 +590,5 @@ fun void testKeyboard() {
     }
 }
 
-fun void testGame() {
-    FileReader file;
-    file.parseFile("5letters.txt") @=> WordSet set;
-    KeyPoller kp();
-
-    ChordleGame game(set, kp, 6, 5);
-    game.setActive(1);
-    game.play();
-}
 
 main();
