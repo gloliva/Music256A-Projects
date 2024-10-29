@@ -201,7 +201,9 @@ class LetterBox extends GGen {
     GText letterPre;
     GText letterPost;
 
+    // Colors
     vec3 letterColor;
+    vec3 permanentColor;
 
     // Sequencer member variables
     int seqMode;
@@ -223,7 +225,8 @@ class LetterBox extends GGen {
 
         // Init box
         @(0.95, 0.95, 0.95) => box.sca;
-        Color.GRAY => box.color;
+        Color.GRAY => this.permanentColor;
+        this.permanentColor => box.color;
 
         // Init border
         0.90 => border.scaZ;
@@ -283,8 +286,17 @@ class LetterBox extends GGen {
         endRotX => this.box.rotX;
     }
 
-    fun void setColor(vec3 color, float intensity) {
+    fun void setTempColor(vec3 color, float intensity) {
         color * intensity => this.box.color;
+    }
+
+    fun void setPermanentColor(vec3 color, float intensity) {
+        color * intensity => this.permanentColor;
+        this.permanentColor => this.box.color;
+    }
+
+    fun vec3 getPermanentColor() {
+        return this.permanentColor;
     }
 }
 
@@ -368,16 +380,24 @@ class ChordleGrid extends GGen {
 
         // Set matching color
         if (mode == BlockMode.NO_MATCH) {
-            lb.setColor(Color.DARKGRAY, 0.5);
+            lb.setPermanentColor(Color.DARKGRAY, 0.5);
         } else if (mode == BlockMode.EXACT_MATCH) {
-            lb.setColor(Color.GREEN, 1.);
+            lb.setPermanentColor(Color.GREEN, 1.);
         } else if (mode == BlockMode.LETTER_MATCH) {
-            lb.setColor(Color.YELLOW, 2.);
+            lb.setPermanentColor(Color.YELLOW, 2.);
         }
     }
 
-    fun void setColor(int row, int col, vec3 color, float intensity) {
-        this.grid[row][col].setColor(color, intensity);
+    fun void setColor(int row, int col, vec3 color, float intensity, int permanent) {
+        if (permanent) {
+            this.grid[row][col].setPermanentColor(color, intensity);
+        } else {
+            this.grid[row][col].setTempColor(color, intensity);
+        }
+    }
+
+    fun vec3 getColor(int row, int col) {
+        return this.grid[row][col].getPermanentColor();
     }
 }
 
@@ -411,9 +431,12 @@ class ChordleGame {
     float tempo;
     dur quarterNote;
 
-    // Current sequencer position
+    // Sequencer position handling
+    int prevSeqRow;
+    int prevSeqCol;
     int currSeqRow;
     int currSeqCol;
+    vec3 prevSeqColor;
 
     fun @construct(WordSet wordSet, KeyPoller kp, int numRows, int numCols) {
         wordSet @=> this.wordSet;
@@ -430,10 +453,17 @@ class ChordleGame {
         kp @=> KeyPoller kp;
 
         // set member variables
-        0 => currPlayerRow;
-        0 => currPlayerCol;
-        0 => active;
-        0 => complete;
+        0 => this.currPlayerRow;
+        0 => this.currPlayerCol;
+        0 => this.active;
+        0 => this.complete;
+
+        // Default tempo
+        this.setTempo(120.);
+
+        // Init Sequence member variables
+        -1 => this.prevSeqRow;
+        -1 => this.prevSeqCol;
     }
 
     fun void setTempo(float tempo) {
@@ -549,13 +579,45 @@ class ChordleGame {
     }
 
     fun void sequenceVisuals() {
+        while (this.currPlayerRow < 1) {
+            GG.nextFrame() => now;
+        }
+
         while (true) {
+            // Set previous block's color
+            if (this.prevSeqRow >= 0 && this.prevSeqCol >= 0) {
+                this.grid.getColor(this.prevSeqRow, this.prevSeqCol) => vec3 color;
+                this.grid.setColor(this.prevSeqRow, this.prevSeqCol, color, 1., 0);
+            }
+
+            // Set current block's color
+            this.grid.setColor(this.currSeqRow, this.currSeqCol, Color.RED, 1.5, 0);
             GG.nextFrame() => now;
         }
     }
 
     fun void sequenceAudio() {
+        while (this.currPlayerRow < 1) {
+            this.quarterNote => now;
+        }
 
+        while (true) {
+            // Do audio stuff here
+
+            // Wait
+            this.quarterNote => now;
+
+            // Set previous values
+            this.currSeqCol => this.prevSeqCol;
+            this.currSeqRow => this.prevSeqRow;
+
+            // Move to next square
+            this.currSeqCol + 1 => this.currSeqCol;
+            if (this.currSeqCol >= this.numCols) {
+                0 => this.currSeqCol;
+                (this.currSeqRow + 1) % this.currPlayerRow => this.currSeqRow;
+            }
+        }
     }
 }
 
@@ -588,7 +650,10 @@ fun void main() {
     // Instantiate first game
     ChordleGame initGame(letterSet5, kp, 6, 5);
     initGame.setActive(1);
+    initGame.setTempo(120.);
     spork ~ initGame.play();
+    spork ~ initGame.sequenceAudio();
+    spork ~ initGame.sequenceVisuals();
 
     while (true) {
         GG.nextFrame() => now;
@@ -601,7 +666,8 @@ fun void main() {
     }
 }
 
-// TEST
+
+// TESTING
 fun void testRotate() {
     ChordleGrid grid(6, 5);
     grid.setLetter("X", 0, 0);
@@ -640,5 +706,5 @@ fun void testKeyboard() {
     }
 }
 
-
+// Run
 main();
