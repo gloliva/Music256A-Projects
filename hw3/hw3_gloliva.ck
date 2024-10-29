@@ -20,7 +20,8 @@ Color.BLACK => GG.scene().backgroundColor;
 
 // KeyPress
 class KeyPoller {
-    "BACKSLASH" => string BACKSLASH;
+    "BACKSPACE" => string BACKSPACE;
+    "ENTER" => string ENTER;
 
     fun string[] getKeyPress() {
         string keys[0];
@@ -54,7 +55,8 @@ class KeyPoller {
         if (GWindow.keyDown(GWindow.Key_Z)) keys << "Z";
 
         // Special characters
-        if (GWindow.keyDown(GWindow.Key_Backspace)) keys << this.BACKSLASH;
+        if (GWindow.keyDown(GWindow.Key_Backspace)) keys << this.BACKSPACE;
+        if (GWindow.keyDown(GWindow.Key_Enter)) keys << this.ENTER;
 
         return keys;
     }
@@ -242,13 +244,13 @@ class ChordleGrid extends GGen {
     }
 
     fun void setLetter(string text, int row, int col) {
-        if (row >= this.numRows) {
-            // BAD
+        if (row >= this.numRows || row < 0) {
+            <<< "Invalid row in ChordleGrid.setLetter:", row, "Num Rows:", this.numRows >>>;
             return;
         }
 
-        if (col >= this.numCols) {
-            // BAD
+        if (col >= this.numCols || col < 0) {
+            <<< "Invalid col in ChordleGrid.setLetter:", col, "Num Cols:", this.numCols >>>;
             return;
         }
 
@@ -257,13 +259,13 @@ class ChordleGrid extends GGen {
     }
 
     fun void removeLetter(int row, int col) {
-        if (row >= this.numRows) {
-            // BAD
+        if (row >= this.numRows || row < 0) {
+            <<< "Invalid row in ChordleGrid.removeLetter:", row, "Num Rows:", this.numRows >>>;
             return;
         }
 
-        if (col >= this.numCols) {
-            // BAD
+        if (col >= this.numCols || col < 0) {
+            <<< "Invalid col in ChordleGrid.removeLetter:", col, "Num Cols:", this.numCols >>>;
             return;
         }
 
@@ -288,10 +290,13 @@ class ChordleGame {
     WordSet wordSet;
     string gameWord;
 
-    // This game is the active game
-    int isActive;
+    // KeyPoller
+    KeyPoller kp;
 
-    fun @construct(WordSet wordSet, int numRows, int numCols) {
+    // This game is the active game
+    int active;
+
+    fun @construct(WordSet wordSet, KeyPoller kp, int numRows, int numCols) {
         wordSet @=> this.wordSet;
         numRows => this.numRows;
         numCols => this.numCols;
@@ -299,13 +304,41 @@ class ChordleGame {
         // Grid
         new ChordleGrid(numRows, numCols) @=> this.grid;
 
+        // Key Poller
+        kp @=> KeyPoller kp;
+
         // set member variables
         0 => currRow;
         0 => currCol;
-        0 => isActive;
+        0 => active;
+    }
+
+    fun setActive(int mode) {
+        mode => this.active;
+    }
+
+    fun void play() {
+        while (true) {
+            if ( this.active ) {
+                // Update game based on key presses
+                this.kp.getKeyPress() @=> string keys[];
+                for (string key : keys) {
+                    // Delete letter in current row
+                    if (key == kp.BACKSPACE && currCol > 0) {
+                        this.grid.removeLetter(currRow, currCol - 1);
+                        currCol--;
+                    // Add letter to current row
+                    } else if (key != kp.BACKSPACE && currCol < numCols) {
+                        this.grid.setLetter(key, currRow, currCol);
+                        if ( currCol < numCols ) currCol++;
+                    }
+                }
+            }
+
+            GG.nextFrame() => now;
+        }
     }
 }
-
 
 
 // main
@@ -322,7 +355,11 @@ fun void main() {
 }
 
 // TEST
-fun void testRotate(ChordleGrid grid) {
+fun void testRotate() {
+    ChordleGrid grid(6, 5);
+    grid.setLetter("X", 0, 0);
+    grid.setLetter("C", 0, 1);
+
     repeat(120) {
         GG.nextFrame() => now;
     }
@@ -358,12 +395,22 @@ fun void testKeyboard() {
     }
 }
 
+fun void testGame() {
+    FileReader file;
+    file.parseFile("5letters.txt") @=> WordSet set;
+    KeyPoller kp();
 
-ChordleGrid grid(6, 5);
-grid.setLetter("X", 0, 0);
-grid.setLetter("C", 0, 1);
+    ChordleGame game(set, kp, 6, 5);
+    game.setActive(1);
+    game.play();
 
-spork ~ testRotate(grid);
-spork ~ testFile();
-spork ~ testKeyboard();
+}
+
+
+
+
+// spork ~ testRotate();
+// spork ~ testFile();
+// spork ~ testKeyboard();
+spork ~ testGame();
 main();
