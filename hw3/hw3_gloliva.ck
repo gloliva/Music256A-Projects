@@ -19,44 +19,90 @@ Color.BLACK => GG.scene().backgroundColor;
 
 
 // Keyboard Handling
+class Key {
+    string key;
+
+    fun @construct(string key) {
+        key => this.key;
+    }
+}
+
+
+class LetterKey extends Key {
+    fun @construct(string key) {
+        Key(key);
+    }
+}
+
+
+class NumberKey extends Key {
+    int num;
+
+    fun @construct(string key) {
+        Key(key);
+        Std.atoi(key) => num;
+    }
+}
+
+
+
+class SpecialKey extends Key {
+    fun @construct(string key) {
+        Key(key);
+    }
+}
+
+
 class KeyPoller {
     "BACKSPACE" => string BACKSPACE;
     "ENTER" => string ENTER;
 
-    fun string[] getKeyPress() {
-        string keys[0];
+    fun Key[] getKeyPress() {
+        Key keys[0];
 
         // Letters
-        if (GWindow.keyDown(GWindow.Key_A)) keys << "A";
-        if (GWindow.keyDown(GWindow.Key_B)) keys << "B";
-        if (GWindow.keyDown(GWindow.Key_C)) keys << "C";
-        if (GWindow.keyDown(GWindow.Key_D)) keys << "D";
-        if (GWindow.keyDown(GWindow.Key_E)) keys << "E";
-        if (GWindow.keyDown(GWindow.Key_F)) keys << "F";
-        if (GWindow.keyDown(GWindow.Key_G)) keys << "G";
-        if (GWindow.keyDown(GWindow.Key_H)) keys << "H";
-        if (GWindow.keyDown(GWindow.Key_I)) keys << "I";
-        if (GWindow.keyDown(GWindow.Key_J)) keys << "J";
-        if (GWindow.keyDown(GWindow.Key_K)) keys << "K";
-        if (GWindow.keyDown(GWindow.Key_L)) keys << "L";
-        if (GWindow.keyDown(GWindow.Key_M)) keys << "M";
-        if (GWindow.keyDown(GWindow.Key_N)) keys << "N";
-        if (GWindow.keyDown(GWindow.Key_O)) keys << "O";
-        if (GWindow.keyDown(GWindow.Key_P)) keys << "P";
-        if (GWindow.keyDown(GWindow.Key_Q)) keys << "Q";
-        if (GWindow.keyDown(GWindow.Key_R)) keys << "R";
-        if (GWindow.keyDown(GWindow.Key_S)) keys << "S";
-        if (GWindow.keyDown(GWindow.Key_T)) keys << "T";
-        if (GWindow.keyDown(GWindow.Key_U)) keys << "U";
-        if (GWindow.keyDown(GWindow.Key_V)) keys << "V";
-        if (GWindow.keyDown(GWindow.Key_W)) keys << "W";
-        if (GWindow.keyDown(GWindow.Key_X)) keys << "X";
-        if (GWindow.keyDown(GWindow.Key_Y)) keys << "Y";
-        if (GWindow.keyDown(GWindow.Key_Z)) keys << "Z";
+        if (GWindow.keyDown(GWindow.Key_A)) keys << new LetterKey("A");
+        if (GWindow.keyDown(GWindow.Key_B)) keys << new LetterKey("B");
+        if (GWindow.keyDown(GWindow.Key_C)) keys << new LetterKey("C");
+        if (GWindow.keyDown(GWindow.Key_D)) keys << new LetterKey("D");
+        if (GWindow.keyDown(GWindow.Key_E)) keys << new LetterKey("E");
+        if (GWindow.keyDown(GWindow.Key_F)) keys << new LetterKey("F");
+        if (GWindow.keyDown(GWindow.Key_G)) keys << new LetterKey("G");
+        if (GWindow.keyDown(GWindow.Key_H)) keys << new LetterKey("H");
+        if (GWindow.keyDown(GWindow.Key_I)) keys << new LetterKey("I");
+        if (GWindow.keyDown(GWindow.Key_J)) keys << new LetterKey("J");
+        if (GWindow.keyDown(GWindow.Key_K)) keys << new LetterKey("K");
+        if (GWindow.keyDown(GWindow.Key_L)) keys << new LetterKey("L");
+        if (GWindow.keyDown(GWindow.Key_M)) keys << new LetterKey("M");
+        if (GWindow.keyDown(GWindow.Key_N)) keys << new LetterKey("N");
+        if (GWindow.keyDown(GWindow.Key_O)) keys << new LetterKey("O");
+        if (GWindow.keyDown(GWindow.Key_P)) keys << new LetterKey("P");
+        if (GWindow.keyDown(GWindow.Key_Q)) keys << new LetterKey("Q");
+        if (GWindow.keyDown(GWindow.Key_R)) keys << new LetterKey("R");
+        if (GWindow.keyDown(GWindow.Key_S)) keys << new LetterKey("S");
+        if (GWindow.keyDown(GWindow.Key_T)) keys << new LetterKey("T");
+        if (GWindow.keyDown(GWindow.Key_U)) keys << new LetterKey("U");
+        if (GWindow.keyDown(GWindow.Key_V)) keys << new LetterKey("V");
+        if (GWindow.keyDown(GWindow.Key_W)) keys << new LetterKey("W");
+        if (GWindow.keyDown(GWindow.Key_X)) keys << new LetterKey("X");
+        if (GWindow.keyDown(GWindow.Key_Y)) keys << new LetterKey("Y");
+        if (GWindow.keyDown(GWindow.Key_Z)) keys << new LetterKey("Z");
+
+        // Numbers
+        if (GWindow.keyDown(GWindow.Key_0)) keys << new NumberKey("0");
+        if (GWindow.keyDown(GWindow.Key_1)) keys << new NumberKey("1");
+        if (GWindow.keyDown(GWindow.Key_2)) keys << new NumberKey("2");
+        if (GWindow.keyDown(GWindow.Key_3)) keys << new NumberKey("3");
+        if (GWindow.keyDown(GWindow.Key_4)) keys << new NumberKey("4");
+        if (GWindow.keyDown(GWindow.Key_5)) keys << new NumberKey("5");
+        if (GWindow.keyDown(GWindow.Key_6)) keys << new NumberKey("6");
+        if (GWindow.keyDown(GWindow.Key_7)) keys << new NumberKey("7");
+        if (GWindow.keyDown(GWindow.Key_8)) keys << new NumberKey("8");
+        if (GWindow.keyDown(GWindow.Key_9)) keys << new NumberKey("9");
 
         // Special characters
-        if (GWindow.keyDown(GWindow.Key_Backspace)) keys << this.BACKSPACE;
-        if (GWindow.keyDown(GWindow.Key_Enter)) keys << this.ENTER;
+        if (GWindow.keyDown(GWindow.Key_Backspace)) keys << new SpecialKey(this.BACKSPACE);
+        if (GWindow.keyDown(GWindow.Key_Enter)) keys << new SpecialKey(this.ENTER);
 
         return keys;
     }
@@ -369,7 +415,6 @@ class ChordleGame {
             this.rowLetters[colIdx] => string letter;
             this.gameWord.find(letter, colIdx) => int gameWordIdx;
             if (colIdx == gameWordIdx) {
-                <<< "What value is this", BlockMode.EXACT_MATCH >>>;
                 BlockMode.EXACT_MATCH => matches[colIdx];
                 gameLetterFreq[letter] - 1 => gameLetterFreq[letter];
             }
@@ -410,24 +455,26 @@ class ChordleGame {
             // If this game is the active game
             if ( this.active ) {
                 // Update game based on key presses
-                this.kp.getKeyPress() @=> string keys[];
-                for (string key : keys) {
-                    if (key == kp.BACKSPACE && currCol > 0) {
-                        // Delete letter in current row
-                        this.grid.removeLetter(currRow, currCol - 1);
-                        this.rowLetters.popBack();
-                        currCol--;
-                    } else if (key != kp.BACKSPACE && key != kp.ENTER && currCol < numCols) {
+                this.kp.getKeyPress() @=> Key keys[];
+                for (Key key : keys) {
+                    if (Type.of(key).name() == "SpecialKey") {
+                        if (key.key == kp.BACKSPACE && currCol > 0) {
+                            // Delete letter in current row
+                            this.grid.removeLetter(currRow, currCol - 1);
+                            this.rowLetters.popBack();
+                            currCol--;
+                        } else if (key.key == kp.ENTER && currCol == numCols) {
+                            // Check current row and move to next
+                            this.checkRow();
+                            this.rowLetters.reset();
+                            currRow++;
+                            0 => currCol;
+                        }
+                    } else if (Type.of(key).name() == "LetterKey" && currCol < numCols) {
                         // Add letter to current row
-                        this.grid.setLetter(key, currRow, currCol);
-                        this.rowLetters << key;
+                        this.grid.setLetter(key.key, currRow, currCol);
+                        this.rowLetters << key.key;
                         currCol++;
-                    } else if (key == kp.ENTER && currCol == numCols) {
-                        // Check current row and move to next
-                        this.checkRow();
-                        this.rowLetters.reset();
-                        currRow++;
-                        0 => currCol;
                     }
                 }
             }
@@ -446,10 +493,22 @@ class ChordleGame {
 
 // main
 fun void main() {
+    // Read in all words
+    FileReader fr;
+    fr.parseFile("5letters.txt") @=> WordSet letterSet5;
+
+    // Keyboard polling
+    KeyPoller kp();
+
+    // Instantiate first game
+    ChordleGame initGame(letterSet5, kp, 6, 5);
+    initGame.setActive(1);
+    spork ~ initGame.play();
+
     while (true) {
         GG.nextFrame() => now;
         // UI
-        if (UI.begin("Tutorial")) {
+        if (UI.begin("HW3")) {
             // show a UI display of the current scenegraph
             UI.scenegraph(GG.scene());
         }
@@ -487,10 +546,10 @@ fun void testKeyboard() {
     KeyPoller kp();
 
     while (true) {
-        kp.getKeyPress() @=> string keys[];
+        kp.getKeyPress() @=> Key keys[];
 
-        for (string key : keys) {
-            <<< "Key: ", key >>>;
+        for (Key key : keys) {
+            <<< "Key: ", key.key >>>;
         }
         GG.nextFrame() => now;
     }
@@ -504,11 +563,6 @@ fun void testGame() {
     ChordleGame game(set, kp, 6, 5);
     game.setActive(1);
     game.play();
-
 }
 
-// spork ~ testRotate();
-// spork ~ testFile();
-// spork ~ testKeyboard();
-spork ~ testGame();
 main();
