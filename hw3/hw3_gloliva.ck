@@ -18,7 +18,7 @@ mainCam.posZ(8.0);
 Color.BLACK => GG.scene().backgroundColor;
 
 
-// KeyPress
+// Keyboard Handling
 class KeyPoller {
     "BACKSPACE" => string BACKSPACE;
     "ENTER" => string ENTER;
@@ -115,6 +115,16 @@ class FileReader {
         return set;
     }
 }
+
+
+// Letter Matching Modes
+class BlockMode {
+    static int NO_MATCH;
+    static int EXACT_MATCH;
+    static int LETTER_MATCH;
+}
+1 => BlockMode.EXACT_MATCH;
+2 => BlockMode.LETTER_MATCH;
 
 
 // Chordle Grid
@@ -273,9 +283,9 @@ class ChordleGrid extends GGen {
         this.grid[row][col] @=> LetterBox lb;
         lb.rotate();
 
-        if (mode == 1) {
+        if (mode == BlockMode.EXACT_MATCH) {
             lb.setColor(Color.GREEN, 1.);
-        } else if (mode == 2) {
+        } else if (mode == BlockMode.LETTER_MATCH) {
             lb.setColor(Color.YELLOW, 2.);
         }
     }
@@ -301,8 +311,9 @@ class ChordleGame {
     // KeyPoller
     KeyPoller kp;
 
-    // This game is the active game
+    // Game status
     int active;
+    int complete;
 
     fun @construct(WordSet wordSet, KeyPoller kp, int numRows, int numCols) {
         wordSet @=> this.wordSet;
@@ -322,6 +333,7 @@ class ChordleGame {
         0 => currRow;
         0 => currCol;
         0 => active;
+        0 => complete;
     }
 
     fun void setActive(int mode) {
@@ -340,6 +352,13 @@ class ChordleGame {
         }
     }
 
+    fun int checkGameComplete(int matches[]) {
+        for (int match : matches) {
+            if (match != 1) return false;
+        }
+        return true;
+    }
+
     fun void checkRow() {
         int gameLetterFreq[0];
         this.getGameLetterFreq(gameLetterFreq);
@@ -350,7 +369,8 @@ class ChordleGame {
             this.rowLetters[colIdx] => string letter;
             this.gameWord.find(letter, colIdx) => int gameWordIdx;
             if (colIdx == gameWordIdx) {
-                1 => matches[colIdx];
+                <<< "What value is this", BlockMode.EXACT_MATCH >>>;
+                BlockMode.EXACT_MATCH => matches[colIdx];
                 gameLetterFreq[letter] - 1 => gameLetterFreq[letter];
             }
         }
@@ -360,7 +380,7 @@ class ChordleGame {
             this.rowLetters[colIdx] => string letter;
             this.gameWord.find(letter) => int gameWordIdx;
             if (colIdx != gameWordIdx && gameWordIdx != -1 && gameLetterFreq[letter] > 0) {
-                2 => matches[colIdx];
+                BlockMode.LETTER_MATCH => matches[colIdx];
                 gameLetterFreq[letter] - 1 => gameLetterFreq[letter];
             }
         }
@@ -379,10 +399,15 @@ class ChordleGame {
                 GG.nextFrame() => now;
             }
         }
+
+        this.checkGameComplete(matches) => this.complete;
     }
 
     fun void play() {
-        while (true) {
+        // Loop while word hasn't been found
+        while ( !this.complete ) {
+
+            // If this game is the active game
             if ( this.active ) {
                 // Update game based on key presses
                 this.kp.getKeyPress() @=> string keys[];
@@ -408,6 +433,11 @@ class ChordleGame {
             }
 
             // Next frame
+            GG.nextFrame() => now;
+        }
+
+        // This game is done
+        while (true) {
             GG.nextFrame() => now;
         }
     }
