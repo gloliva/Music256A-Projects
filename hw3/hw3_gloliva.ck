@@ -108,7 +108,7 @@ class FileReader {
 
         // Read each line as a word
         while (fio.more()) {
-            fio.readLine() => string word;
+            fio.readLine().upper() => string word;
             set.add(word);
         }
 
@@ -195,12 +195,8 @@ class LetterBox extends GGen {
         endRotX => this.box.rotX;
     }
 
-    fun void setGreen() {
-        Color.GREEN => this.box.color;
-    }
-
-    fun void setYellow() {
-        Color.YELLOW => this.box.color;
+    fun void setColor(vec3 color, float intensity) {
+        color * intensity => this.box.color;
     }
 }
 
@@ -273,8 +269,15 @@ class ChordleGrid extends GGen {
         lb.removeLetter();
     }
 
-    fun void rotateBlock(int row, int col) {
-        this.grid[row][col].rotate();
+    fun void revealBlock(int row, int col, int mode) {
+        this.grid[row][col] @=> LetterBox lb;
+        lb.rotate();
+
+        if (mode == 1) {
+            lb.setColor(Color.GREEN, 1.);
+        } else if (mode == 2) {
+            lb.setColor(Color.YELLOW, 2.);
+        }
     }
 }
 
@@ -325,16 +328,50 @@ class ChordleGame {
         mode => this.active;
     }
 
-    fun void checkRow() {
-        for (int idx; idx < this.rowLetters.size(); idx++) {
-            this.rowLetters[idx] => string letter;
-            this.gameWord.find(letter) => int gameWordIdx;
-            if (idx == gameWordIdx) {
+    fun void getGameLetterFreq(int gameLetterFreq[]) {
+        for (int charIdx; charIdx < this.gameWord.length(); charIdx++) {
+            this.gameWord.substring(charIdx, 1) => string letter;
 
+            if (gameLetterFreq.isInMap(letter)) {
+                1 + gameLetterFreq[letter] => gameLetterFreq[letter];
+            } else {
+                1 => gameLetterFreq[letter];
             }
+        }
+    }
+
+    fun void checkRow() {
+        int gameLetterFreq[0];
+        this.getGameLetterFreq(gameLetterFreq);
+
+        // Loop through initially to determine exact letter matching
+        int matches[this.rowLetters.size()];
+        for (int colIdx; colIdx < this.rowLetters.size(); colIdx++) {
+            this.rowLetters[colIdx] => string letter;
+            this.gameWord.find(letter, colIdx) => int gameWordIdx;
+            if (colIdx == gameWordIdx) {
+                1 => matches[colIdx];
+                gameLetterFreq[letter] - 1 => gameLetterFreq[letter];
+            }
+        }
+
+        // Loop through againt to determine correct letters in the wrong spot
+        for (int colIdx; colIdx < this.rowLetters.size(); colIdx++) {
+            this.rowLetters[colIdx] => string letter;
+            this.gameWord.find(letter) => int gameWordIdx;
+            if (colIdx != gameWordIdx && gameWordIdx != -1 && gameLetterFreq[letter] > 0) {
+                2 => matches[colIdx];
+                gameLetterFreq[letter] - 1 => gameLetterFreq[letter];
+            }
+        }
+
+        // Loop through again to rotate each block
+        for (int colIdx; colIdx < this.rowLetters.size(); colIdx++) {
+            // Get mode
+            matches[colIdx] => int mode;
 
             // Rotate current column block
-            spork ~ this.grid.rotateBlock(this.currRow, idx);
+            spork ~ this.grid.revealBlock(this.currRow, colIdx, mode);
 
             // Wait between each rotation
             now + 0.5::second => time end;
@@ -401,8 +438,6 @@ fun void testRotate() {
     }
 
     grid.grid[0][1].rotate();
-    grid.grid[0][1].setGreen();
-
 }
 
 fun void testFile() {
