@@ -272,6 +272,10 @@ class ChordleGrid extends GGen {
         this.grid[row][col] @=> LetterBox lb;
         lb.removeLetter();
     }
+
+    fun void rotateBlock(int row, int col) {
+        this.grid[row][col].rotate();
+    }
 }
 
 
@@ -289,6 +293,7 @@ class ChordleGame {
     // Winning words
     WordSet wordSet;
     string gameWord;
+    string rowLetters[0];
 
     // KeyPoller
     KeyPoller kp;
@@ -304,6 +309,9 @@ class ChordleGame {
         // Grid
         new ChordleGrid(numRows, numCols) @=> this.grid;
 
+        // Game word
+        wordSet.getRandom() => this.gameWord;
+
         // Key Poller
         kp @=> KeyPoller kp;
 
@@ -313,8 +321,27 @@ class ChordleGame {
         0 => active;
     }
 
-    fun setActive(int mode) {
+    fun void setActive(int mode) {
         mode => this.active;
+    }
+
+    fun void checkRow() {
+        for (int idx; idx < this.rowLetters.size(); idx++) {
+            this.rowLetters[idx] => string letter;
+            this.gameWord.find(letter) => int gameWordIdx;
+            if (idx == gameWordIdx) {
+
+            }
+
+            // Rotate current column block
+            spork ~ this.grid.rotateBlock(this.currRow, idx);
+
+            // Wait between each rotation
+            now + 0.5::second => time end;
+            while (now < end) {
+                GG.nextFrame() => now;
+            }
+        }
     }
 
     fun void play() {
@@ -323,18 +350,27 @@ class ChordleGame {
                 // Update game based on key presses
                 this.kp.getKeyPress() @=> string keys[];
                 for (string key : keys) {
-                    // Delete letter in current row
                     if (key == kp.BACKSPACE && currCol > 0) {
+                        // Delete letter in current row
                         this.grid.removeLetter(currRow, currCol - 1);
+                        this.rowLetters.popBack();
                         currCol--;
-                    // Add letter to current row
-                    } else if (key != kp.BACKSPACE && currCol < numCols) {
+                    } else if (key != kp.BACKSPACE && key != kp.ENTER && currCol < numCols) {
+                        // Add letter to current row
                         this.grid.setLetter(key, currRow, currCol);
-                        if ( currCol < numCols ) currCol++;
+                        this.rowLetters << key;
+                        currCol++;
+                    } else if (key == kp.ENTER && currCol == numCols) {
+                        // Check current row and move to next
+                        this.checkRow();
+                        this.rowLetters.reset();
+                        currRow++;
+                        0 => currCol;
                     }
                 }
             }
 
+            // Next frame
             GG.nextFrame() => now;
         }
     }
@@ -405,9 +441,6 @@ fun void testGame() {
     game.play();
 
 }
-
-
-
 
 // spork ~ testRotate();
 // spork ~ testFile();
