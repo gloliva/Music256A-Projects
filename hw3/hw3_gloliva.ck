@@ -188,18 +188,23 @@ class BlockMode {
     static int EXACT_MATCH;
     static int LETTER_MATCH;
 }
+0 => BlockMode.NO_MATCH;
 1 => BlockMode.EXACT_MATCH;
 2 => BlockMode.LETTER_MATCH;
 
 
 // Chordle Grid
 class LetterBox extends GGen {
+    // Graphics objects
     GCube box;
     GCube border;
     GText letterPre;
     GText letterPost;
 
     vec3 letterColor;
+
+    // Sequencer member variables
+    int seqMode;
 
     fun @construct() {
         // Init letters
@@ -236,6 +241,14 @@ class LetterBox extends GGen {
         this.letterPost --> this.box;
         this.box --> this;
         this.border --> this;
+    }
+
+    fun void mode(int mode) {
+        mode => this.seqMode;
+    }
+
+    fun int mode() {
+        return this.seqMode;
     }
 
     fun void setLetter(string text) {
@@ -346,27 +359,41 @@ class ChordleGrid extends GGen {
 
     fun void revealBlock(int row, int col, int mode) {
         this.grid[row][col] @=> LetterBox lb;
+
+        // Set the sequencer mode
+        lb.mode(mode);
+
+        // Rotate the block to reveal
         lb.rotate();
 
-        if (mode == BlockMode.EXACT_MATCH) {
+        // Set matching color
+        if (mode == BlockMode.NO_MATCH) {
+            lb.setColor(Color.DARKGRAY, 0.5);
+        } else if (mode == BlockMode.EXACT_MATCH) {
             lb.setColor(Color.GREEN, 1.);
         } else if (mode == BlockMode.LETTER_MATCH) {
             lb.setColor(Color.YELLOW, 2.);
         }
+    }
+
+    fun void setColor(int row, int col, vec3 color, float intensity) {
+        this.grid[row][col].setColor(color, intensity);
     }
 }
 
 
 // Chordle Game
 class ChordleGame {
-    int currRow;
-    int currCol;
-
+    // Grid size
     int numRows;
     int numCols;
 
     // Grid
     ChordleGrid grid;
+
+    // Current player typing position
+    int currPlayerRow;
+    int currPlayerCol;
 
     // Winning words
     WordSet wordSet;
@@ -379,6 +406,14 @@ class ChordleGame {
     // Game status
     int active;
     int complete;
+
+    // Timing variables
+    float tempo;
+    dur quarterNote;
+
+    // Current sequencer position
+    int currSeqRow;
+    int currSeqCol;
 
     fun @construct(WordSet wordSet, KeyPoller kp, int numRows, int numCols) {
         wordSet @=> this.wordSet;
@@ -395,10 +430,15 @@ class ChordleGame {
         kp @=> KeyPoller kp;
 
         // set member variables
-        0 => currRow;
-        0 => currCol;
+        0 => currPlayerRow;
+        0 => currPlayerCol;
         0 => active;
         0 => complete;
+    }
+
+    fun void setTempo(float tempo) {
+        tempo => this.tempo;
+        (60. / tempo)::second => this.quarterNote;
     }
 
     fun void setActive(int mode) {
@@ -455,7 +495,7 @@ class ChordleGame {
             matches[colIdx] => int mode;
 
             // Rotate current column block
-            spork ~ this.grid.revealBlock(this.currRow, colIdx, mode);
+            spork ~ this.grid.revealBlock(this.currPlayerRow, colIdx, mode);
 
             // Wait between each rotation
             now + 0.5::second => time end;
@@ -477,23 +517,23 @@ class ChordleGame {
                 this.kp.getKeyPress() @=> Key keys[];
                 for (Key key : keys) {
                     if (Type.of(key).name() == "SpecialKey") {
-                        if (key.key == kp.BACKSPACE && currCol > 0) {
+                        if (key.key == kp.BACKSPACE && currPlayerCol > 0) {
                             // Delete letter in current row
-                            this.grid.removeLetter(currRow, currCol - 1);
+                            this.grid.removeLetter(currPlayerRow, currPlayerCol - 1);
                             this.rowLetters.popBack();
-                            currCol--;
-                        } else if (key.key == kp.ENTER && currCol == numCols) {
+                            currPlayerCol--;
+                        } else if (key.key == kp.ENTER && currPlayerCol == numCols) {
                             // Check current row and move to next
                             this.checkRow();
                             this.rowLetters.reset();
-                            currRow++;
-                            0 => currCol;
+                            currPlayerRow++;
+                            0 => currPlayerCol;
                         }
-                    } else if (Type.of(key).name() == "LetterKey" && currCol < numCols) {
+                    } else if (Type.of(key).name() == "LetterKey" && currPlayerCol < numCols) {
                         // Add letter to current row
-                        this.grid.setLetter(key.key, currRow, currCol);
+                        this.grid.setLetter(key.key, currPlayerRow, currPlayerCol);
                         this.rowLetters << key.key;
-                        currCol++;
+                        currPlayerCol++;
                     }
                 }
             }
@@ -506,6 +546,16 @@ class ChordleGame {
         while (true) {
             GG.nextFrame() => now;
         }
+    }
+
+    fun void sequenceVisuals() {
+        while (true) {
+            GG.nextFrame() => now;
+        }
+    }
+
+    fun void sequenceAudio() {
+
     }
 }
 
