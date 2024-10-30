@@ -27,19 +27,20 @@ Color.BLACK => GG.scene().backgroundColor;
 
 
 // Camera Movement
-fun void moveCamera(float xDelta, float yDelta, float zDelta, dur duration) {
-    mainCam.pos() => vec3 startPos;
+fun void updateGameScreen(GameScreen screen, float scaDelta, float xDelta, float yDelta, dur duration) {
+    screen.scaX() => float startScale;
 
     now + duration => time end;
     while (now < end) {
-        mainCam.posX() + (xDelta * GG.dt()) => mainCam.posX;
-        mainCam.posY() + (yDelta * GG.dt()) => mainCam.posY;
-        mainCam.posZ() + (zDelta * GG.dt()) => mainCam.posZ;
+        screen.scaX() - (scaDelta * GG.dt()) => screen.scaX;
+        screen.scaY() - (scaDelta * GG.dt()) => screen.scaY;
+        screen.scaZ() - (scaDelta * GG.dt()) => screen.scaZ;
+        screen.posX() - (xDelta * GG.dt()) => screen.posX;
         GG.nextFrame() => now;
     }
 
     // Final position adjustment
-    @(startPos.x + xDelta, startPos.y + yDelta, startPos.z + zDelta) => mainCam.pos;
+    @(startScale - scaDelta, startScale - scaDelta, startScale - scaDelta) => screen.sca;
 }
 
 
@@ -67,7 +68,6 @@ class NumberKey extends Key {
         key.toInt() => num;
     }
 }
-
 
 
 class SpecialKey extends Key {
@@ -366,9 +366,6 @@ class ChordleGrid extends GGen {
                 this.grid[row][col] --> this;
             }
         }
-
-        // Connect to scene
-        this --> GG.scene();
 
         // Names
         "ChordleGrid" => this.name;
@@ -744,14 +741,21 @@ class GameManager {
     // Transport Event
     Event beat;
 
+    // Screen management
+    GameScreen @ screen;
+
     // Game UI
     GameMatrixUI ui;
+    ChordleUI title;
 
-    fun @construct(WordSet sets[], SndBuf buffers[], Event beat) {
+    fun @construct(WordSet sets[], SndBuf buffers[], Event beat, GameScreen screen) {
         sets @=> this.sets;
         buffers @=> this.buffers;
         beat @=> this.beat;
+        screen @=> this.screen;
+
         this.ui.setPos();
+        this.title.setPos();
 
         // Default values
         0 => this.numGames;
@@ -847,6 +851,7 @@ class GameManager {
                 game.setGridPos(5.5 * this.numCols, 0.);
                 game.setTempo(120., 1.);
                 game.initAudio(this.buffers);
+                this.screen.addToScreen(game.grid);
 
                 // Start new game
                 spork ~ game.play();
@@ -860,8 +865,7 @@ class GameManager {
 
                 // Update camera
                 if (this.numGames > 1) {
-                    Math.pow(2., this.numCols - 1) => float zDelta;
-                    spork ~ moveCamera(2.5, 0., zDelta, 1::second);
+                    spork ~ updateGameScreen(this.screen, 0.2, 2., 0., 1::second);
                 }
 
                 // Reset
@@ -871,6 +875,18 @@ class GameManager {
 
             GG.nextFrame() => now;
         }
+    }
+}
+
+
+class GameScreen extends GGen {
+    fun @construct() {
+        this --> GG.scene();
+        "Game Screen" => this.name;
+    }
+
+    fun addToScreen(ChordleGrid grid) {
+        grid --> this;
     }
 }
 
@@ -888,6 +904,7 @@ class GameMatrixUI extends GGen {
         0.5 => row.scaX;
         0.5 => cross.scaX;
         0.5 => col.scaX;
+        @(0.5, 0.5, 0.5) => this.sca;
 
         // Text
         "1" => row.text;
@@ -907,6 +924,7 @@ class GameMatrixUI extends GGen {
         1. => this.posZ;
 
         // Name
+        "Matrix UI" => this.name;
         "Background" => this.box.name;
         "Row #" => this.row.name;
         "Col #" => this.col.name;
@@ -922,7 +940,43 @@ class GameMatrixUI extends GGen {
 
     fun void setPos() {
         mainCam.posZ() - this.posZ() => float depth;
-        mainCam.screenCoordToWorldPos(WINDOW_SIZE, depth) => vec3 worldPos;
+        @(WINDOW_SIZE.x, WINDOW_SIZE.y - 115) => vec2 screenPos;
+        mainCam.screenCoordToWorldPos(screenPos, depth) => vec3 worldPos;
+        worldPos => this.pos;
+    }
+}
+
+
+class ChordleUI extends GGen {
+    GPlane box;
+    GText text;
+
+    fun @construct() {
+        // Text
+        "Chordle" => text.text;
+        @(0., 0., 0., 1.) => text.color;
+
+        // Scale
+        5. => box.scaX;
+        0.5 => this.sca;
+
+        // Pos
+        0.1 => text.posZ;
+
+        // Name
+        "ChordleUI" => this.name;
+        "Title" => this.text.name;
+        "Background" => this.box.name;
+
+        // Connections
+        text --> this;
+        box --> this --> GG.scene();
+    }
+
+    fun void setPos() {
+        mainCam.posZ() - this.posZ() => float depth;
+        @(WINDOW_SIZE.x / 2., 50) => vec2 screenPos;
+        mainCam.screenCoordToWorldPos(screenPos, depth) => vec3 worldPos;
         worldPos => this.pos;
     }
 }
@@ -983,8 +1037,11 @@ fun void main() {
     Transport transport(120.);
     spork ~ transport.signalBeat();
 
+    // Screen management
+    GameScreen screen();
+
     // Game manager
-    GameManager gameManager(sets, buffers, transport.beat);
+    GameManager gameManager(sets, buffers, transport.beat, screen);
     spork ~ gameManager.manageGames();
     spork ~ gameManager.selectActiveGame();
 
