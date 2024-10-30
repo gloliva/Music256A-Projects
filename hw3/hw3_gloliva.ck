@@ -14,6 +14,7 @@
 // Window Setup
 GWindow.title("Chordle");
 GWindow.fullscreen();
+GWindow.windowSize() => vec2 WINDOW_SIZE;
 
 
 // Camera
@@ -31,6 +32,9 @@ fun void moveCamera(float xDelta, float yDelta, float zDelta, dur duration) {
 
     now + duration => time end;
     while (now < end) {
+        mainCam.posX() + (xDelta * GG.dt()) => mainCam.posX;
+        mainCam.posY() + (yDelta * GG.dt()) => mainCam.posY;
+        mainCam.posZ() + (zDelta * GG.dt()) => mainCam.posZ;
         GG.nextFrame() => now;
     }
 
@@ -160,17 +164,28 @@ class WordSet {
     }
 
     fun string[] getWords() {
-        string keys[mapSize];
+        string keys[this.mapSize];
         this.words.getKeys(keys);
         return keys;
     }
 
     fun string getRandom() {
+        return this.getRandom(0);
+    }
+
+    fun string getRandom(int remove) {
         string keys[this.mapSize];
         this.words.getKeys(keys);
 
+        // Get word
         Math.random2(0, this.mapSize - 1) => int idx;
-        return keys[idx];
+        keys[idx] => string word;
+
+        if (remove) {
+            this.words.erase(word);
+        }
+
+        return word;
     }
 }
 
@@ -483,7 +498,7 @@ class ChordleGame {
         new ChordleGrid(numRows, numCols) @=> this.grid;
 
         // Game word
-        wordSet.getRandom() => this.gameWord;
+        wordSet.getRandom(1) => this.gameWord;
 
         // set member variables
         0 => this.currPlayerRow;
@@ -667,16 +682,10 @@ class ChordleGame {
             this.grid.getMode(this.currSeqRow, this.currSeqCol) => int mode;
 
             if (mode == BlockMode.EXACT_MATCH) {
-                this.env.value(1.);
-                0 => this.buffer.pos;
-                1. => this.buffer.rate;
+                spork ~ this.playAudio(1.);
             } else if (mode == BlockMode.LETTER_MATCH) {
                 Math.random2f(0., 1.) => float chance;
-                if (chance > .5) {
-                    this.env.value(0.5);
-                    0 => this.buffer.pos;
-                    1. => this.buffer.rate;
-                }
+                if (chance > 0.5) spork ~ this.playAudio(0.5);
             }
 
             // Wait
@@ -694,6 +703,13 @@ class ChordleGame {
                 (this.currSeqRow + 1) % this.currPlayerRow => this.currSeqRow;
             }
         }
+    }
+
+    fun void playAudio(float vol) {
+        this.env.value(vol);
+        0 => this.buffer.pos;
+        1. => this.buffer.rate;
+        this.buffer.length() => now;
     }
 }
 
@@ -718,9 +734,13 @@ class GameManager {
     // Buffer references
     SndBuf buffers[];
 
+    // Game UI
+    GameMatrixUI ui;
+
     fun @construct(WordSet sets[], SndBuf buffers[]) {
         sets @=> this.sets;
         buffers @=> this.buffers;
+        this.ui.setPos();
 
         // Default values
         0 => this.numGames;
@@ -807,13 +827,13 @@ class GameManager {
                 }
             }
 
+            // Row and Col are set
             if (N > 0 && M > 0) {
                 // Add new game
-                <<< "New game with size: ", N, M >>>;
                 this.sets[colSize] @=> WordSet set;
                 ChordleGame game(set, N, M);
                 game.setActive(0);
-                game.setGridPos(5. * this.numCols, 0.);
+                game.setGridPos(5.5 * this.numCols, 0.);
                 game.setTempo(120., 1.);
                 game.initAudio(this.buffers);
 
@@ -875,11 +895,24 @@ class GameMatrixUI extends GGen {
 
         1. => this.posZ;
 
+        // Name
+        "Background" => this.box.name;
+        "Row #" => this.row.name;
+        "Col #" => this.col.name;
+        "X" => this.cross.name;
+        "Game UI" => this.name;
+
         // Connections
         row --> box;
         cross --> box;
         col --> box;
         box --> this --> GG.scene();
+    }
+
+    fun void setPos() {
+        mainCam.posZ() - this.posZ() => float depth;
+        mainCam.screenCoordToWorldPos(WINDOW_SIZE, depth) => vec3 worldPos;
+        worldPos => this.pos;
     }
 }
 
@@ -915,30 +948,10 @@ fun void main() {
     loadBuffers(buffers, letterSet4);
     loadBuffers(buffers, letterSet5);
 
-    // Instantiate UI
-    // GameMatrixUI ui();  // TODO: Enable eventually
-
     // Game manager
     GameManager gameManager(sets, buffers);
     spork ~ gameManager.manageGames();
     spork ~ gameManager.selectActiveGame();
-
-    // Instantiate first game
-    // ChordleGame initGame(letterSet5, 6, 5);
-    // initGame.setActive(1);
-    // initGame.setTempo(120., 2.);
-    // initGame.initAudio(buffers);
-
-    // spork ~ initGame.play();
-    // spork ~ initGame.sequenceAudio();
-    // spork ~ initGame.sequenceVisuals();
-
-    // ChordleGame game(letterSet4, 4, 4);
-    // game.setActive(0);
-    // game.setGridPos(5., 0.);
-    // game.setTempo(120., 1.);
-    // game.initAudio(buffers);
-
 
     while (true) {
         GG.nextFrame() => now;
