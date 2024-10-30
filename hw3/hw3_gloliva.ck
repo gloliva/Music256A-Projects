@@ -66,7 +66,7 @@ class KeyPoller {
     // Special Characters
     "BACKSPACE" => string BACKSPACE;
     "ENTER" => string ENTER;
-    "SHIFT" => string SHIFT;
+    "SPACE" => string SPACE;
     "PLUS" => string PLUS;
     "MINUS" => string MINUS;
 
@@ -128,6 +128,7 @@ class KeyPoller {
         // Special characters
         if (GWindow.keyDown(GWindow.Key_Backspace)) keys << new SpecialKey(this.BACKSPACE);
         if (GWindow.keyDown(GWindow.Key_Enter)) keys << new SpecialKey(this.ENTER);
+        if (GWindow.keyDown(GWindow.Key_Space)) keys << new SpecialKey(this.SPACE);
 
         if (GWindow.keyDown(GWindow.Key_Up) && !GWindow.key(GWindow.Key_LeftShift)) keys << new SpecialKey(this.UP_ARROW);
         if (GWindow.keyDown(GWindow.Key_Down) && !GWindow.key(GWindow.Key_LeftShift)) keys << new SpecialKey(this.DOWN_ARROW);
@@ -250,10 +251,20 @@ class LetterBox extends GGen {
     vec3 letterColor;
     vec3 permanentColor;
 
+    // Size
+    float length;
+    float width;
+    float depth;
+
     // Sequencer member variables
     int seqMode;
 
     fun @construct() {
+        // size
+        1. => length;
+        1. => width;
+        1. => depth;
+
         // Init letters
         // Letter prior to rotation
         "." => letterPre.text;
@@ -351,9 +362,17 @@ class ChordleGrid extends GGen {
     int numRows;
     int numCols;
 
+    // Size
+    float gridLength;
+    float gridWidth;
+    float gridDepth;
+
     fun @construct(int numRows, int numCols) {
         numRows => this.numRows;
         numCols => this.numCols;
+
+        1. * this.numRows => this.gridLength;
+        1. * this.numCols => this.gridWidth;
 
         // Instantiate grid
         for (int row; row < numRows; row++) {
@@ -755,7 +774,7 @@ class GameManager {
     GameScreen @ screen;
 
     // Game UI
-    GameMatrixUI ui;
+    GameMatrixUI matrixUI;
     ChordleUI title;
 
     fun @construct(WordSet sets[], SndBuf buffers[], Event beat, GameScreen screen) {
@@ -764,7 +783,7 @@ class GameManager {
         beat @=> this.beat;
         screen @=> this.screen;
 
-        this.ui.setPos();
+        this.matrixUI.setPos();
         this.title.setPos();
 
         // Default values
@@ -837,13 +856,13 @@ class GameManager {
             for (Key key : keys) {
                 if (Type.of(key).name() == "SpecialKey") {
                     if (key.key == this.kp.MOVE_UP) {
-                        this.moveScreen(0., 5.);
-                    } else if (key.key == this.kp.MOVE_DOWN) {
                         this.moveScreen(0., -5.);
+                    } else if (key.key == this.kp.MOVE_DOWN) {
+                        this.moveScreen(0., 5.);
                     } else if (key.key == this.kp.MOVE_LEFT) {
-                        this.moveScreen(-5., 0.);
-                    } else if (key.key == this.kp.MOVE_RIGHT) {
                         this.moveScreen(5., 0.);
+                    } else if (key.key == this.kp.MOVE_RIGHT) {
+                        this.moveScreen(-5., 0.);
                     } else if (key.key == this.kp.PLUS) {
                         this.zoomScreen(5.);
                     } else if (key.key == this.kp.MINUS) {
@@ -860,6 +879,7 @@ class GameManager {
         // Grid size
         -1 => int N;
         -1 => int M;
+        -1 => int divider;
         string colSize;
 
         while (true) {
@@ -868,37 +888,44 @@ class GameManager {
                 if (Type.of(key).name() == "NumberKey") {
                     if (N < 0) {
                         key.num => N;
+                        this.matrixUI.updateRow(key.key);
                     } else if (M < 0) {
                         key.num => M;
                         key.key => colSize;
+                        this.matrixUI.updateCol(key.key);
+                    } else if (divider < 0) {
+                        key.num => divider;
+                        this.matrixUI.updateDivider(key.key);
+                    }
+                } else if (Type.of(key).name() == "SpecialKey") {
+                    // Row and Col and Divider are set
+                    if (key.key == this.kp.SPACE && N > 0 && M > 0 && divider > 0) {
+                        // Add new game
+                        this.sets[colSize] @=> WordSet set;
+                        ChordleGame game(set, this.beat, N, M);
+                        game.setActive(0);
+                        game.setGridPos(5.5 * this.numCols, 0.);  // TODO: update where grid is set
+                        game.setTempo(120., divider);
+                        game.initAudio(this.buffers);
+                        this.screen.addToScreen(game.grid);
+
+                        // Start new game
+                        spork ~ game.play();
+                        spork ~ game.sequenceAudio();
+                        spork ~ game.sequenceVisuals();
+
+                        // Add game to GameManager
+                        game @=> this.games[0][this.numCols];
+                        this.numCols + 1 => this.numCols;
+                        this.numGames++;
+
+                        // Reset
+                        -1 => N;
+                        -1 => M;
+                        -1 => divider;
+                        this.matrixUI.reset();
                     }
                 }
-            }
-
-            // Row and Col are set
-            if (N > 0 && M > 0) {
-                // Add new game
-                this.sets[colSize] @=> WordSet set;
-                ChordleGame game(set, this.beat, N, M);
-                game.setActive(0);
-                game.setGridPos(5.5 * this.numCols, 0.);
-                game.setTempo(120., 1.);
-                game.initAudio(this.buffers);
-                this.screen.addToScreen(game.grid);
-
-                // Start new game
-                spork ~ game.play();
-                spork ~ game.sequenceAudio();
-                spork ~ game.sequenceVisuals();
-
-                // Add game to GameManager
-                game @=> this.games[0][this.numCols];
-                this.numCols + 1 => this.numCols;
-                this.numGames++;
-
-                // Reset
-                -1 => N;
-                -1 => M;
             }
 
             GG.nextFrame() => now;
@@ -925,29 +952,39 @@ class GameMatrixUI extends GGen {
     GText row;
     GText cross;
     GText col;
+    GText clock;
+    GText divider;
 
     fun @construct() {
         // Scale
         2. => box.scaX;
-        0.5 => row.scaX;
-        0.5 => cross.scaX;
-        0.5 => col.scaX;
+        @(0.6, 0.6, 0.6) => row.sca;
+        @(0.6, 0.6, 0.6) => cross.sca;
+        @(0.6, 0.6, 0.6) => col.sca;
+        @(0.2, 0.2, 0.2) => clock.sca;
+        @(0.2, 0.2, 0.2) => divider.sca;
         @(0.5, 0.5, 0.5) => this.sca;
 
         // Text
-        "1" => row.text;
+        "." => row.text;
         "x" => cross.text;
-        "1" => col.text;
+        "." => col.text;
+        "Beat Div" => clock.text;
+        "." => divider.text;
 
         // Text color
         @(0., 0., 0., 1.) => row.color;
         @(0., 0., 0., 1.) => cross.color;
         @(0., 0., 0., 1.) => col.color;
+        @(0., 0., 0., 1.) => clock.color;
+        @(0., 0., 0., 1.) => divider.color;
 
         // Positions
-        @(-0.3, 0., 0.1) => row.pos;
-        0.1 => cross.posZ;
-        @(0.3, 0., 0.1) => col.pos;
+        @(-0.6, 0.2, 0.1) => row.pos;
+        @(0., 0.2, 0.1) => cross.pos;
+        @(0.6, 0.2, 0.1) => col.pos;
+        @(-0.4, -0.3, 0.1) => clock.pos;
+        @(0.62, -0.3, 0.1) => divider.pos;
 
         1. => this.posZ;
 
@@ -957,18 +994,39 @@ class GameMatrixUI extends GGen {
         "Row #" => this.row.name;
         "Col #" => this.col.name;
         "X" => this.cross.name;
-        "Game UI" => this.name;
+        "Clock" => this.clock.name;
+        "Beat divider" => this.divider.name;
 
         // Connections
-        row --> box;
-        cross --> box;
-        col --> box;
+        row --> this;
+        cross --> this;
+        col --> this;
+        clock --> this;
+        divider --> this;
         box --> this --> GG.scene();
+    }
+
+    fun void updateRow(string row) {
+        row => this.row.text;
+    }
+
+    fun void updateCol(string col) {
+        col => this.col.text;
+    }
+
+    fun void updateDivider(string divider) {
+        divider => this.divider.text;
+    }
+
+    fun void reset() {
+        "." => this.row.text;
+        "." => this.col.text;
+        "." => this.divider.text;
     }
 
     fun void setPos() {
         mainCam.posZ() - this.posZ() => float depth;
-        @(WINDOW_SIZE.x, WINDOW_SIZE.y - 115) => vec2 screenPos;
+        @(WINDOW_SIZE.x + 100, WINDOW_SIZE.y - 60) => vec2 screenPos;
         mainCam.screenCoordToWorldPos(screenPos, depth) => vec3 worldPos;
         worldPos => this.pos;
     }
