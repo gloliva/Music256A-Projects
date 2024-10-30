@@ -475,8 +475,10 @@ class ChordleGame {
     float tempo;
     dur quarterNote;
     float clockDivider;
+    Event beat;
 
     // Sequencer position handling
+    int startVisuals;
     int prevSeqRow;
     int prevSeqCol;
     int currSeqRow;
@@ -489,8 +491,9 @@ class ChordleGame {
     Gain gain;
     Envelope env;
 
-    fun @construct(WordSet wordSet, int numRows, int numCols) {
+    fun @construct(WordSet wordSet, Event beat, int numRows, int numCols) {
         wordSet @=> this.wordSet;
+        beat @=> this.beat;
         numRows => this.numRows;
         numCols => this.numCols;
 
@@ -511,6 +514,7 @@ class ChordleGame {
         this.setTempo(120., 1.);
 
         // Init Sequence member variables
+        0 => this.startVisuals;
         -1 => this.prevSeqRow;
         -1 => this.prevSeqCol;
     }
@@ -649,7 +653,7 @@ class ChordleGame {
 
     fun void sequenceVisuals() {
         // Wait until player completes first row
-        while (this.currPlayerRow < 1) {
+        while ( !this.startVisuals ) {
             GG.nextFrame() => now;
         }
 
@@ -676,6 +680,9 @@ class ChordleGame {
         while (this.currPlayerRow < 1) {
             this.quarterNote / this.clockDivider => now;
         }
+
+        this.beat => now;
+        1 => this.startVisuals;
 
         while (true) {
             // Do audio stuff here
@@ -734,12 +741,16 @@ class GameManager {
     // Buffer references
     SndBuf buffers[];
 
+    // Transport Event
+    Event beat;
+
     // Game UI
     GameMatrixUI ui;
 
-    fun @construct(WordSet sets[], SndBuf buffers[]) {
+    fun @construct(WordSet sets[], SndBuf buffers[], Event beat) {
         sets @=> this.sets;
         buffers @=> this.buffers;
+        beat @=> this.beat;
         this.ui.setPos();
 
         // Default values
@@ -831,7 +842,7 @@ class GameManager {
             if (N > 0 && M > 0) {
                 // Add new game
                 this.sets[colSize] @=> WordSet set;
-                ChordleGame game(set, N, M);
+                ChordleGame game(set, this.beat, N, M);
                 game.setActive(0);
                 game.setGridPos(5.5 * this.numCols, 0.);
                 game.setTempo(120., 1.);
@@ -929,6 +940,26 @@ fun void loadBuffers(SndBuf buffers[], WordSet set) {
 }
 
 
+class Transport {
+    // Timing variables
+    float tempo;
+    dur quarterNote;
+    Event beat;
+
+    fun @construct(float tempo) {
+        tempo => this.tempo;
+        (60. / tempo)::second => this.quarterNote;
+    }
+
+    fun void signalBeat() {
+        while (true) {
+            this.beat.signal();
+            this.quarterNote * 4 => now;
+        }
+    }
+}
+
+
 // ************ //
 // MAIN PROGRAM //
 // ************ //
@@ -948,8 +979,12 @@ fun void main() {
     loadBuffers(buffers, letterSet4);
     loadBuffers(buffers, letterSet5);
 
+    // Global Transport
+    Transport transport(120.);
+    spork ~ transport.signalBeat();
+
     // Game manager
-    GameManager gameManager(sets, buffers);
+    GameManager gameManager(sets, buffers, transport.beat);
     spork ~ gameManager.manageGames();
     spork ~ gameManager.selectActiveGame();
 
