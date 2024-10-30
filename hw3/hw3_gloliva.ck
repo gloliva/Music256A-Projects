@@ -42,6 +42,7 @@ fun void moveCamera(float xDelta, float yDelta, float zDelta, dur duration) {
 // Keyboard Handling
 class Key {
     string key;
+    int num;
 
     fun @construct(string key) {
         key => this.key;
@@ -57,11 +58,9 @@ class LetterKey extends Key {
 
 
 class NumberKey extends Key {
-    int num;
-
     fun @construct(string key) {
         Key(key);
-        Std.atoi(key) => num;
+        key.toInt() => num;
     }
 }
 
@@ -475,7 +474,7 @@ class ChordleGame {
     Gain gain;
     Envelope env;
 
-    fun @construct(WordSet wordSet, KeyPoller kp, int numRows, int numCols) {
+    fun @construct(WordSet wordSet, int numRows, int numCols) {
         wordSet @=> this.wordSet;
         numRows => this.numRows;
         numCols => this.numCols;
@@ -485,9 +484,6 @@ class ChordleGame {
 
         // Game word
         wordSet.getRandom() => this.gameWord;
-
-        // Key Poller
-        // kp @=> KeyPoller kp;
 
         // set member variables
         0 => this.currPlayerRow;
@@ -714,9 +710,19 @@ class GameManager {
     KeyPoller kp;
 
     // Game references
-    ChordleGame games[0][0];
+    ChordleGame games[5][5];
 
-    fun @construct() {
+    // Word references
+    WordSet sets[];
+
+    // Buffer references
+    SndBuf buffers[];
+
+    fun @construct(WordSet sets[], SndBuf buffers[]) {
+        sets @=> this.sets;
+        buffers @=> this.buffers;
+
+        // Default values
         0 => this.numGames;
         0 => this.numRows;
         0 => this.numCols;
@@ -724,8 +730,15 @@ class GameManager {
         0 => this.activeCol;
     }
 
-    fun addGame(ChordleGame game, int row, int col) {
+    fun addGame(ChordleGame game, int row) {
         this.numGames++;
+
+        if (row > numRows) {
+
+        } else {
+            this.games[row] << game;
+            this.numCols;
+        }
     }
 
     fun selectActiveGame() {
@@ -733,6 +746,9 @@ class GameManager {
         while (this.numGames < 1) {
             GG.nextFrame() => now;
         }
+
+        // Set first game to be active
+        this.games[this.activeRow][this.activeCol].setActive(1);
 
         while (true) {
             this.activeRow => int newActiveRow;
@@ -766,6 +782,60 @@ class GameManager {
             }
 
             // Poll wait
+            GG.nextFrame() => now;
+        }
+    }
+
+    fun manageGames() {
+        // Grid size
+        -1 => int N;
+        -1 => int M;
+        string colSize;
+
+        while (true) {
+            this.kp.getKeyPress() @=> Key keys[];
+            for (Key key : keys) {
+                if (Type.of(key).name() == "NumberKey") {
+                    if (N < 0) {
+                        key.num => N;
+                    } else if (M < 0) {
+                        key.num => M;
+                        key.key => colSize;
+                    }
+                }
+            }
+
+            if (N > 0 && M > 0) {
+                // Add new game
+                <<< "New game with size: ", N, M >>>;
+                this.sets[colSize] @=> WordSet set;
+                ChordleGame game(set, N, M);
+                game.setActive(0);
+                game.setGridPos(5. * this.numCols, 0.);
+                game.setTempo(120., 1.);
+                game.initAudio(this.buffers);
+
+                // Start new game
+                spork ~ game.play();
+                spork ~ game.sequenceAudio();
+                spork ~ game.sequenceVisuals();
+
+                // Add game to GameManager
+                game @=> this.games[0][this.numCols];
+                this.numCols + 1 => this.numCols;
+                this.numGames++;
+
+                // Update camera
+                if (this.numGames > 1) {
+                    Math.pow(2., this.numCols - 1) => float zDelta;
+                    spork ~ moveCamera(2.5, 0., zDelta, 1::second);
+                }
+
+                // Reset
+                -1 => N;
+                -1 => M;
+            }
+
             GG.nextFrame() => now;
         }
     }
@@ -833,8 +903,10 @@ fun void main() {
     fr.parseFile("words/4letters.txt") @=> WordSet letterSet4;
     fr.parseFile("words/5letters.txt") @=> WordSet letterSet5;
 
-    // Keyboard polling
-    KeyPoller kp();
+    // Map of word sets
+    WordSet sets[0];
+    letterSet4 @=> sets["4"];
+    letterSet5 @=> sets["5"];
 
     // Load buffers
     SndBuf buffers[0];
@@ -844,21 +916,26 @@ fun void main() {
     // Instantiate UI
     // GameMatrixUI ui();  // TODO: Enable eventually
 
+    // Game manager
+    GameManager gameManager(sets, buffers);
+    spork ~ gameManager.manageGames();
+    spork ~ gameManager.selectActiveGame();
+
     // Instantiate first game
-    ChordleGame initGame(letterSet5, kp, 6, 5);
-    initGame.setActive(1);
-    initGame.setTempo(120., 2.);
-    initGame.initAudio(buffers);
+    // ChordleGame initGame(letterSet5, 6, 5);
+    // initGame.setActive(1);
+    // initGame.setTempo(120., 2.);
+    // initGame.initAudio(buffers);
 
-    spork ~ initGame.play();
-    spork ~ initGame.sequenceAudio();
-    spork ~ initGame.sequenceVisuals();
+    // spork ~ initGame.play();
+    // spork ~ initGame.sequenceAudio();
+    // spork ~ initGame.sequenceVisuals();
 
-    ChordleGame game(letterSet4, kp, 4, 4);
-    game.setActive(0);
-    game.setGridPos(5., 0.);
-    game.setTempo(120., 1.);
-    game.initAudio(buffers);
+    // ChordleGame game(letterSet4, 4, 4);
+    // game.setActive(0);
+    // game.setGridPos(5., 0.);
+    // game.setTempo(120., 1.);
+    // game.initAudio(buffers);
 
 
     while (true) {
