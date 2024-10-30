@@ -9,6 +9,9 @@
     - Adding new game:
         - new game moves over by 5 in X
         - camera moves +1 in Z and +2.5 in X
+
+    - update how camera is moved with arrow keys and shift
+    - change zoom with + and -
 */
 
 // Window Setup
@@ -24,24 +27,6 @@ mainCam.posZ(8.0);
 
 // Background
 Color.BLACK => GG.scene().backgroundColor;
-
-
-// Camera Movement
-fun void updateGameScreen(GameScreen screen, float scaDelta, float xDelta, float yDelta, dur duration) {
-    screen.scaX() => float startScale;
-
-    now + duration => time end;
-    while (now < end) {
-        screen.scaX() - (scaDelta * GG.dt()) => screen.scaX;
-        screen.scaY() - (scaDelta * GG.dt()) => screen.scaY;
-        screen.scaZ() - (scaDelta * GG.dt()) => screen.scaZ;
-        screen.posX() - (xDelta * GG.dt()) => screen.posX;
-        GG.nextFrame() => now;
-    }
-
-    // Final position adjustment
-    @(startScale - scaDelta, startScale - scaDelta, startScale - scaDelta) => screen.sca;
-}
 
 
 // Keyboard Handling
@@ -81,12 +66,21 @@ class KeyPoller {
     // Special Characters
     "BACKSPACE" => string BACKSPACE;
     "ENTER" => string ENTER;
+    "SHIFT" => string SHIFT;
+    "PLUS" => string PLUS;
+    "MINUS" => string MINUS;
 
     // Arrow Keys
     "UP_ARROW" => string UP_ARROW;
     "DOWN_ARROW" => string DOWN_ARROW;
     "LEFT_ARROW" => string LEFT_ARROW;
     "RIGHT_ARROW" => string RIGHT_ARROW;
+
+    // "Movement" Keys
+    "MOVE_UP" => string MOVE_UP;
+    "MOVE_DOWN" => string MOVE_DOWN;
+    "MOVE_LEFT" => string MOVE_LEFT;
+    "MOVE_RIGHT" => string MOVE_RIGHT;
 
     fun Key[] getKeyPress() {
         Key keys[0];
@@ -135,10 +129,26 @@ class KeyPoller {
         if (GWindow.keyDown(GWindow.Key_Backspace)) keys << new SpecialKey(this.BACKSPACE);
         if (GWindow.keyDown(GWindow.Key_Enter)) keys << new SpecialKey(this.ENTER);
 
-        if (GWindow.keyDown(GWindow.Key_Up)) keys << new SpecialKey(this.UP_ARROW);
-        if (GWindow.keyDown(GWindow.Key_Down)) keys << new SpecialKey(this.DOWN_ARROW);
-        if (GWindow.keyDown(GWindow.Key_Left)) keys << new SpecialKey(this.LEFT_ARROW);
-        if (GWindow.keyDown(GWindow.Key_Right)) keys << new SpecialKey(this.RIGHT_ARROW);
+        if (GWindow.keyDown(GWindow.Key_Up) && !GWindow.key(GWindow.Key_LeftShift)) keys << new SpecialKey(this.UP_ARROW);
+        if (GWindow.keyDown(GWindow.Key_Down) && !GWindow.key(GWindow.Key_LeftShift)) keys << new SpecialKey(this.DOWN_ARROW);
+        if (GWindow.keyDown(GWindow.Key_Left) && !GWindow.key(GWindow.Key_LeftShift)) keys << new SpecialKey(this.LEFT_ARROW);
+        if (GWindow.keyDown(GWindow.Key_Right) && !GWindow.key(GWindow.Key_LeftShift)) keys << new SpecialKey(this.RIGHT_ARROW);
+
+        return keys;
+    }
+
+    fun Key[] getKeyHeld() {
+        Key keys[0];
+
+        // Special characters while holding shift
+        if (GWindow.key(GWindow.Key_Equal) && GWindow.key(GWindow.Key_LeftShift)) keys << new SpecialKey(this.PLUS);
+        if (GWindow.key(GWindow.Key_Minus) && GWindow.key(GWindow.Key_LeftShift)) keys << new SpecialKey(this.MINUS);
+
+        // Arrow keys while holding shift
+        if (GWindow.key(GWindow.Key_Up) && GWindow.key(GWindow.Key_LeftShift)) keys << new SpecialKey(this.MOVE_UP);
+        if (GWindow.key(GWindow.Key_Down) && GWindow.key(GWindow.Key_LeftShift)) keys << new SpecialKey(this.MOVE_DOWN);
+        if (GWindow.key(GWindow.Key_Left) && GWindow.key(GWindow.Key_LeftShift)) keys << new SpecialKey(this.MOVE_LEFT);
+        if (GWindow.key(GWindow.Key_Right) && GWindow.key(GWindow.Key_LeftShift)) keys << new SpecialKey(this.MOVE_RIGHT);
 
         return keys;
     }
@@ -765,17 +775,6 @@ class GameManager {
         0 => this.activeCol;
     }
 
-    fun addGame(ChordleGame game, int row) {
-        this.numGames++;
-
-        if (row > numRows) {
-
-        } else {
-            this.games[row] << game;
-            this.numCols;
-        }
-    }
-
     fun selectActiveGame() {
         // Wait until first game is created
         while (this.numGames < 1) {
@@ -823,6 +822,40 @@ class GameManager {
         }
     }
 
+    fun moveScreen(float xDelta, float yDelta) {
+        xDelta * GG.dt() => this.screen.translateX;
+        yDelta * GG.dt() => this.screen.translateY;
+    }
+
+    fun zoomScreen(float zDelta) {
+        zDelta * GG.dt() => this.screen.translateZ;
+    }
+
+    fun monitorScreenActions() {
+        while (true) {
+            this.kp.getKeyHeld() @=> Key keys[];
+            for (Key key : keys) {
+                if (Type.of(key).name() == "SpecialKey") {
+                    if (key.key == this.kp.MOVE_UP) {
+                        this.moveScreen(0., 5.);
+                    } else if (key.key == this.kp.MOVE_DOWN) {
+                        this.moveScreen(0., -5.);
+                    } else if (key.key == this.kp.MOVE_LEFT) {
+                        this.moveScreen(-5., 0.);
+                    } else if (key.key == this.kp.MOVE_RIGHT) {
+                        this.moveScreen(5., 0.);
+                    } else if (key.key == this.kp.PLUS) {
+                        this.zoomScreen(5.);
+                    } else if (key.key == this.kp.MINUS) {
+                        this.zoomScreen(-5.);
+                    }
+                }
+            }
+
+            GG.nextFrame() => now;
+        }
+    }
+
     fun manageGames() {
         // Grid size
         -1 => int N;
@@ -862,11 +895,6 @@ class GameManager {
                 game @=> this.games[0][this.numCols];
                 this.numCols + 1 => this.numCols;
                 this.numGames++;
-
-                // Update camera
-                if (this.numGames > 1) {
-                    spork ~ updateGameScreen(this.screen, 0.2, 2., 0., 1::second);
-                }
 
                 // Reset
                 -1 => N;
@@ -1044,6 +1072,7 @@ fun void main() {
     GameManager gameManager(sets, buffers, transport.beat, screen);
     spork ~ gameManager.manageGames();
     spork ~ gameManager.selectActiveGame();
+    spork ~ gameManager.monitorScreenActions();
 
     while (true) {
         GG.nextFrame() => now;
