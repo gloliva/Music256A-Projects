@@ -759,11 +759,13 @@ class GameManager {
             for (Key key : keys) {
                 if (Type.of(key).name() == "SpecialKey") {
                     if (key.key == this.kp.UP_ARROW) {
-                        (this.activeRow - 1) % this.numRows => newActiveRow;
+                        this.activeRow - 1 => newActiveRow;
+                        if (newActiveRow == -1) this.numRows - 1 => newActiveRow;
                     } else if (key.key == this.kp.DOWN_ARROW) {
                         (this.activeRow + 1) % this.numRows => newActiveRow;
                     } else if (key.key == this.kp.LEFT_ARROW) {
-                        (this.activeCol - 1) % this.numCols => newActiveCol;
+                        this.activeCol - 1 => newActiveCol;
+                        if (newActiveCol == -1) this.numCols - 1 => newActiveCol;
                     } else if (key.key == this.kp.RIGHT_ARROW) {
                         (this.activeCol + 1) % this.numCols => newActiveCol;
                     }
