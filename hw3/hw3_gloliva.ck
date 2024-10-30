@@ -399,6 +399,10 @@ class ChordleGrid extends GGen {
     fun vec3 getColor(int row, int col) {
         return this.grid[row][col].getPermanentColor();
     }
+
+    fun int getMode(int row, int col) {
+        return this.grid[row][col].mode();
+    }
 }
 
 
@@ -438,6 +442,12 @@ class ChordleGame {
     int currSeqCol;
     vec3 prevSeqColor;
 
+    // Audio
+    int audioOn;
+    SndBuf buffer;
+    Gain gain;
+    Envelope env;
+
     fun @construct(WordSet wordSet, KeyPoller kp, int numRows, int numCols) {
         wordSet @=> this.wordSet;
         numRows => this.numRows;
@@ -457,6 +467,7 @@ class ChordleGame {
         0 => this.currPlayerCol;
         0 => this.active;
         0 => this.complete;
+        0 => this.audioOn;
 
         // Default tempo
         this.setTempo(120.);
@@ -473,6 +484,13 @@ class ChordleGame {
 
     fun void setActive(int mode) {
         mode => this.active;
+    }
+
+    fun initAudio(SndBuf buffers[]) {
+        buffers[this.gameWord] @=> this.buffer;
+        this.buffer => this.gain => this.env => dac;
+        0.2 => this.gain.gain;
+        1 => this.audioOn;
     }
 
     fun void getGameLetterFreq(int gameLetterFreq[]) {
@@ -597,15 +615,29 @@ class ChordleGame {
     }
 
     fun void sequenceAudio() {
+        if ( !this.audioOn ) {
+            <<< "ERROR: audio is not enabled. Call `initAudio()` before this function." >>>;
+            me.exit();
+        }
+
+        // Wait until player completes first row
         while (this.currPlayerRow < 1) {
             this.quarterNote => now;
         }
 
         while (true) {
             // Do audio stuff here
+            this.grid.getMode(this.currSeqRow, this.currSeqCol) => int mode;
+
+            if (mode == BlockMode.EXACT_MATCH) {
+                this.env.value(1.);
+                0 => this.buffer.pos;
+                1. => this.buffer.rate;
+            }
 
             // Wait
             this.quarterNote => now;
+            this.env.value(0.);
 
             // Set previous values
             this.currSeqCol => this.prevSeqCol;
@@ -625,12 +657,10 @@ class ChordleGame {
 // ************** //
 // AUDIO HANDLING //
 // ************** //
-SndBuf buffers[0];
-
 fun void loadBuffers(SndBuf buffers[], WordSet set) {
     set.getWords() @=> string words[];
     for (string word : words) {
-        word + ".wav" => string sampleFile;
+        "samples/" + word + ".wav" => string sampleFile;
         new SndBuf(sampleFile) @=> buffers[word];
     }
 }
@@ -642,15 +672,22 @@ fun void loadBuffers(SndBuf buffers[], WordSet set) {
 fun void main() {
     // Read in all words
     FileReader fr;
-    fr.parseFile("5letters.txt") @=> WordSet letterSet5;
+    fr.parseFile("words/4letters.txt") @=> WordSet letterSet4;
+    fr.parseFile("words/5letters.txt") @=> WordSet letterSet5;
 
     // Keyboard polling
     KeyPoller kp();
+
+    // Load buffers
+    SndBuf buffers[0];
+    loadBuffers(buffers, letterSet5);
 
     // Instantiate first game
     ChordleGame initGame(letterSet5, kp, 6, 5);
     initGame.setActive(1);
     initGame.setTempo(120.);
+    initGame.initAudio(buffers);
+
     spork ~ initGame.play();
     spork ~ initGame.sequenceAudio();
     spork ~ initGame.sequenceVisuals();
