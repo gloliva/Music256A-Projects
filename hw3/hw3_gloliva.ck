@@ -4,6 +4,13 @@
     Author: Gregg Oliva
 */
 
+/*
+    IDEAS / IMPLEMENTATION
+    - Adding new game:
+        - new game moves over by 5 in X
+        - camera moves +1 in Z and +2.5 in X
+*/
+
 // Window Setup
 GWindow.title("Chordle");
 GWindow.fullscreen();
@@ -16,6 +23,20 @@ mainCam.posZ(8.0);
 
 // Background
 Color.BLACK => GG.scene().backgroundColor;
+
+
+// Camera Movement
+fun void moveCamera(float xDelta, float yDelta, float zDelta, dur duration) {
+    mainCam.pos() => vec3 startPos;
+
+    now + duration => time end;
+    while (now < end) {
+        GG.nextFrame() => now;
+    }
+
+    // Final position adjustment
+    @(startPos.x + xDelta, startPos.y + yDelta, startPos.z + zDelta) => mainCam.pos;
+}
 
 
 // Keyboard Handling
@@ -403,6 +424,11 @@ class ChordleGrid extends GGen {
     fun int getMode(int row, int col) {
         return this.grid[row][col].mode();
     }
+
+    fun void setGridPos(float x, float y) {
+        x => this.posX;
+        y => this.posY;
+    }
 }
 
 
@@ -434,6 +460,7 @@ class ChordleGame {
     // Timing variables
     float tempo;
     dur quarterNote;
+    float clockDivider;
 
     // Sequencer position handling
     int prevSeqRow;
@@ -460,7 +487,7 @@ class ChordleGame {
         wordSet.getRandom() => this.gameWord;
 
         // Key Poller
-        kp @=> KeyPoller kp;
+        // kp @=> KeyPoller kp;
 
         // set member variables
         0 => this.currPlayerRow;
@@ -470,15 +497,16 @@ class ChordleGame {
         0 => this.audioOn;
 
         // Default tempo
-        this.setTempo(120.);
+        this.setTempo(120., 1.);
 
         // Init Sequence member variables
         -1 => this.prevSeqRow;
         -1 => this.prevSeqCol;
     }
 
-    fun void setTempo(float tempo) {
+    fun void setTempo(float tempo, float clockDivider) {
         tempo => this.tempo;
+        clockDivider => this.clockDivider;
         (60. / tempo)::second => this.quarterNote;
     }
 
@@ -486,10 +514,22 @@ class ChordleGame {
         mode => this.active;
     }
 
+    fun void setGridPos(float x, float y) {
+        this.grid.setGridPos(x, y);
+    }
+
     fun initAudio(SndBuf buffers[]) {
+        // Check that buffer exists
+        if ( !buffers.isInMap(this.gameWord) ) {
+            <<< "ERROR: word", this.gameWord, "not found in buffers array.">>>;
+            <<< "Make sure you call `loadBuffers` with the correct WordSet.">>>;
+            me.exit();
+        }
+
+        // Assign this game's buffer
         buffers[this.gameWord] @=> this.buffer;
         this.buffer => this.gain => this.env => dac;
-        0.2 => this.gain.gain;
+        0.5 => this.gain.gain;
         1 => this.audioOn;
     }
 
@@ -597,6 +637,7 @@ class ChordleGame {
     }
 
     fun void sequenceVisuals() {
+        // Wait until player completes first row
         while (this.currPlayerRow < 1) {
             GG.nextFrame() => now;
         }
@@ -622,7 +663,7 @@ class ChordleGame {
 
         // Wait until player completes first row
         while (this.currPlayerRow < 1) {
-            this.quarterNote => now;
+            this.quarterNote / this.clockDivider => now;
         }
 
         while (true) {
@@ -633,10 +674,17 @@ class ChordleGame {
                 this.env.value(1.);
                 0 => this.buffer.pos;
                 1. => this.buffer.rate;
+            } else if (mode == BlockMode.LETTER_MATCH) {
+                Math.random2f(0., 1.) => float chance;
+                if (chance > .5) {
+                    this.env.value(0.5);
+                    0 => this.buffer.pos;
+                    1. => this.buffer.rate;
+                }
             }
 
             // Wait
-            this.quarterNote => now;
+            this.quarterNote / this.clockDivider => now;
             this.env.value(0.);
 
             // Set previous values
@@ -650,6 +698,116 @@ class ChordleGame {
                 (this.currSeqRow + 1) % this.currPlayerRow => this.currSeqRow;
             }
         }
+    }
+}
+
+
+class GameManager {
+    // Game state variables
+    int numGames;
+    int numRows;
+    int numCols;
+    int activeRow;
+    int activeCol;
+
+    // KeyPoller
+    KeyPoller kp;
+
+    // Game references
+    ChordleGame games[0][0];
+
+    fun @construct() {
+        0 => this.numGames;
+        0 => this.numRows;
+        0 => this.numCols;
+        0 => this.activeRow;
+        0 => this.activeCol;
+    }
+
+    fun addGame(ChordleGame game, int row, int col) {
+        this.numGames++;
+    }
+
+    fun selectActiveGame() {
+        // Wait until first game is created
+        while (this.numGames < 1) {
+            GG.nextFrame() => now;
+        }
+
+        while (true) {
+            this.activeRow => int newActiveRow;
+            this.activeCol => int newActiveCol;
+
+            // Go through keys
+            this.kp.getKeyPress() @=> Key keys[];
+            for (Key key : keys) {
+                if (Type.of(key).name() == "SpecialKey") {
+                    if (key.key == this.kp.UP_ARROW) {
+                        (this.activeRow - 1) % this.numRows => newActiveRow;
+                    } else if (key.key == this.kp.DOWN_ARROW) {
+                        (this.activeRow + 1) % this.numRows => newActiveRow;
+                    } else if (key.key == this.kp.LEFT_ARROW) {
+                        (this.activeCol - 1) % this.numCols => newActiveCol;
+                    } else if (key.key == this.kp.RIGHT_ARROW) {
+                        (this.activeCol + 1) % this.numCols => newActiveCol;
+                    }
+                }
+            }
+
+            // Set the active game
+            if (newActiveRow != this.activeRow || newActiveCol != this.activeCol) {
+                // Disable old game
+                this.games[this.activeRow][this.activeCol].setActive(0);
+
+                // Activate new game
+                newActiveRow => this.activeRow;
+                newActiveCol => this.activeCol;
+                this.games[this.activeRow][this.activeCol].setActive(1);
+            }
+
+            // Poll wait
+            GG.nextFrame() => now;
+        }
+    }
+}
+
+
+// UI
+class GameMatrixUI extends GGen {
+    GPlane box;
+    GText row;
+    GText cross;
+    GText col;
+
+    fun @construct() {
+        // Scale
+        2. => box.scaX;
+        0.5 => row.scaX;
+        0.5 => cross.scaX;
+        0.5 => col.scaX;
+
+        // Text
+        "1" => row.text;
+        "x" => cross.text;
+        "1" => col.text;
+
+        // Text color
+        @(0., 0., 0., 1.) => row.color;
+        @(0., 0., 0., 1.) => cross.color;
+        @(0., 0., 0., 1.) => col.color;
+
+        // Positions
+        @(-0.3, 0., 0.1) => row.pos;
+        0.1 => cross.posZ;
+        @(0.3, 0., 0.1) => col.pos;
+
+        1. => this.posZ;
+
+        // Connections
+        row --> box;
+        cross --> box;
+        col --> box;
+        box --> this --> GG.scene();
     }
 }
 
@@ -680,17 +838,28 @@ fun void main() {
 
     // Load buffers
     SndBuf buffers[0];
+    loadBuffers(buffers, letterSet4);
     loadBuffers(buffers, letterSet5);
+
+    // Instantiate UI
+    // GameMatrixUI ui();  // TODO: Enable eventually
 
     // Instantiate first game
     ChordleGame initGame(letterSet5, kp, 6, 5);
     initGame.setActive(1);
-    initGame.setTempo(120.);
+    initGame.setTempo(120., 2.);
     initGame.initAudio(buffers);
 
     spork ~ initGame.play();
     spork ~ initGame.sequenceAudio();
     spork ~ initGame.sequenceVisuals();
+
+    ChordleGame game(letterSet4, kp, 4, 4);
+    game.setActive(0);
+    game.setGridPos(5., 0.);
+    game.setTempo(120., 1.);
+    game.initAudio(buffers);
+
 
     while (true) {
         GG.nextFrame() => now;
