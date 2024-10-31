@@ -219,7 +219,11 @@ class FileReader {
         // Read each line as a word
         while (fio.more()) {
             fio.readLine().upper() => string word;
-            set.add(word);
+
+            // Skip commented out lines
+            if (word.charAt(0) != "#".charAt(0)) {
+                set.add(word);
+            }
         }
 
         return set;
@@ -528,6 +532,7 @@ class ChordleGame {
 
         // Game word
         wordSet.getRandom(1) => this.gameWord;
+        <<< "Game word: ", this.gameWord >>>;
 
         // set member variables
         0 => this.currPlayerRow;
@@ -759,7 +764,7 @@ class GameManager {
     KeyPoller kp;
 
     // Game references
-    ChordleGame games[5][5];
+    ChordleGame games[5][10];
 
     // Word references
     WordSet sets[];
@@ -1135,11 +1140,11 @@ fun void main() {
     while (true) {
         GG.nextFrame() => now;
         // UI
-        if (UI.begin("HW3")) {
-            // show a UI display of the current scenegraph
-            UI.scenegraph(GG.scene());
-        }
-        UI.end();
+        // if (UI.begin("HW3")) {
+        //     // show a UI display of the current scenegraph
+        //     UI.scenegraph(GG.scene());
+        // }
+        // UI.end();
     }
 }
 
