@@ -6,12 +6,32 @@
 
 /*
     IDEAS / IMPLEMENTATION
-    - Adding new game:
-        - new game moves over by 5 in X
-        - camera moves +1 in Z and +2.5 in X
+    - change letterboxes to have cube be border and panels be the face
+    - Modification words:
+        - SHIFT
+        - SHFT
+        - SFT
 
-    - update how camera is moved with arrow keys and shift
-    - change zoom with + and -
+        - ROTATE
+        - ROTAT
+        - ROTS
+        - ROT
+
+    - Finishing a game unlocks
+        - rotation
+        - step algorithms changes?
+    - Frequency of letters
+
+    Step Algorithms:
+        * Bucket of algorithms for how to step through the sequence
+        * When a game is beaten, calculate the edit distance of each line
+            - add these up and mod by numAlgorithms to select which algorithm
+
+    When a game is beaten, it
+        - "blows up" (i.e. blocks fly from it)
+        - maybe turns gold?? or maybe current step turns from red -> gold
+
+
 */
 
 // Window Setup
@@ -246,8 +266,8 @@ class BlockMode {
 // Chordle Grid
 class LetterBox extends GGen {
     // Graphics objects
-    GCube box;
     GCube border;
+    GPlane panels[6];
     GText letterPre;
     GText letterPost;
 
@@ -260,6 +280,11 @@ class LetterBox extends GGen {
     float width;
     float depth;
 
+    // Panels
+    int activePanelIdx;
+    int panelMapping[0];
+    GPlane activePanel;
+
     // Sequencer member variables
     int seqMode;
 
@@ -269,41 +294,126 @@ class LetterBox extends GGen {
         1. => width;
         1. => depth;
 
+        // Panel Handling
+        Color.GRAY => this.permanentColor;
+        this.initPanels();
+        this.setActivePanel();
+
         // Init letters
         // Letter prior to rotation
         "." => letterPre.text;
         @(10., 10., 10.) => letterColor;
         @(letterColor.x, letterColor.y, letterColor.z, 0.) => letterPre.color;
-        0.51 => letterPre.posZ;
+        0.01 => letterPre.posZ;
 
         // Letter post rotation
         "." => letterPost.text;
         @(10., 10., 10.) => letterColor;
         @(letterColor.x, letterColor.y, letterColor.z, 0.) => letterPost.color;
-        0.51 => letterPost.posY;
-        -1 * (Math.PI / 2) => letterPost.rotX;
-
-        // Init box
-        @(0.95, 0.95, 0.95) => box.sca;
-        Color.GRAY => this.permanentColor;
-        this.permanentColor => box.color;
+        0.01 => letterPost.posZ;
+        //(Math.PI) => letterPost.rotX;
 
         // Init border
-        0.90 => border.scaZ;
         Color.BLACK => border.color;
 
         // Names
         "Letter Pre Rotation" => this.letterPre.name;
         "Letter Post Rotation" => this.letterPost.name;
-        "Box" => this.box.name;
         "Border" => this.border.name;
         "LetterBox" => this.name;
 
         // Connections
-        this.letterPre --> this.box;
-        this.letterPost --> this.box;
-        this.box --> this;
+        this.letterPre --> this.getPanel("front");
+        this.letterPost --> this.getPanel("top");
         this.border --> this;
+    }
+
+    fun void initPanels() {
+        // Front
+        this.panels[0] @=> GPlane panel;
+        @(0.95, 0.95, 0.95) => panel.sca;
+        0.501 => panel.posZ;
+        this.permanentColor => panel.color;
+        0 => this.panelMapping["front"];
+        "Front panel" => panel.name;
+        panel --> this;
+
+        // Back
+        this.panels[1] @=> panel;
+        @(0.95, 0.95, 0.95) => panel.sca;
+        -0.501 => panel.posZ;
+        this.permanentColor => panel.color;
+        1 => this.panelMapping["back"];
+        "Back panel" => panel.name;
+        panel --> this;
+
+        // Right
+        this.panels[2] @=> panel;
+        @(0.95, 0.95, 0.95) => panel.sca;
+        0.501 => panel.posX;
+        Math.PI / 2 => panel.rotateY;
+        this.permanentColor => panel.color;
+        2 => this.panelMapping["right"];
+        "Right panel" => panel.name;
+        panel --> this;
+
+        // Left
+        this.panels[3] @=> panel;
+        @(0.95, 0.95, 0.95) => panel.sca;
+        -0.501 => panel.posX;
+        -Math.PI / 2 => panel.rotateY;
+        this.permanentColor => panel.color;
+        3 => this.panelMapping["left"];
+        "Left panel" => panel.name;
+        panel --> this;
+
+        // Top
+        this.panels[4] @=> panel;
+        @(0.95, 0.95, 0.95) => panel.sca;
+        0.501 => panel.posY;
+        -Math.PI / 2 => panel.rotateX;
+        this.permanentColor => panel.color;
+        4 => this.panelMapping["top"];
+        "Top panel" => panel.name;
+        panel --> this;
+
+        // Bottom
+        this.panels[5] @=> panel;
+        @(0.95, 0.95, 0.95) => panel.sca;
+        -0.501 => panel.posY;
+        Math.PI / 2 => panel.rotateX;
+        this.permanentColor => panel.color;
+        5 => this.panelMapping["bottom"];
+        "Bottom panel" => panel.name;
+        panel --> this;
+    }
+
+    fun GPlane getPanel(string panelPos) {
+        this.panelMapping[panelPos] => int panelIdx;
+        return this.panels[panelIdx];
+    }
+
+    fun int getPanelIdx(string panelPos) {
+        return this.panelMapping[panelPos];
+    }
+
+    fun void recalculatePanelMapping() {
+        this.getPanelIdx("front") => int currFront;
+        this.getPanelIdx("back") => int currBack;
+        this.getPanelIdx("top") => int currTop;
+        this.getPanelIdx("bottom") => int currBottom;
+
+        currTop => this.panelMapping["front"];
+        currBack => this.panelMapping["top"];
+        currBottom => this.panelMapping["back"];
+        currFront => this.panelMapping["bottom"];
+
+        this.getPanelIdx("front") => this.activePanelIdx;
+        this.setActivePanel();
+    }
+
+    fun void setActivePanel() {
+        this.panels[this.activePanelIdx] @=> this.activePanel;
     }
 
     fun void mode(int mode) {
@@ -339,20 +449,20 @@ class LetterBox extends GGen {
 
         while (currRotX < endRotX) {
             (endRotX * GG.dt()) + currRotX => currRotX;
-            currRotX => this.box.rotX;
+            currRotX => this.rotX;
             GG.nextFrame() => now;
         }
 
-        endRotX => this.box.rotX;
+        endRotX => this.rotX;
     }
 
     fun void setTempColor(vec3 color, float intensity) {
-        color * intensity => this.box.color;
+        color * intensity => this.activePanel.color;
     }
 
     fun void setPermanentColor(vec3 color, float intensity) {
         color * intensity => this.permanentColor;
-        this.permanentColor => this.box.color;
+        this.permanentColor => this.activePanel.color;
     }
 
     fun vec3 getPermanentColor() {
@@ -439,6 +549,9 @@ class ChordleGrid extends GGen {
 
         // Set the sequencer mode
         lb.mode(mode);
+
+        // Recalculate mapping
+        lb.recalculatePanelMapping();
 
         // Rotate the block to reveal
         lb.rotate();
@@ -1140,11 +1253,11 @@ fun void main() {
     while (true) {
         GG.nextFrame() => now;
         // UI
-        // if (UI.begin("HW3")) {
-        //     // show a UI display of the current scenegraph
-        //     UI.scenegraph(GG.scene());
-        // }
-        // UI.end();
+        if (UI.begin("HW3")) {
+            // show a UI display of the current scenegraph
+            UI.scenegraph(GG.scene());
+        }
+        UI.end();
     }
 }
 
