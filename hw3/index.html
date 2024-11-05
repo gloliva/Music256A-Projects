@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Homework 3 Milestone B</title>
+    <style>
+        /* Set light blue background for the entire page */
+        body {
+            background-color: #e0f7fa; /* Light blue background */
+        }
+
+        /* Add a container div with a max width and centering */
+        .container {
+            width: 70%; /* Set the width to 70% of the screen */
+            margin: 0 auto; /* Center the container on the page */
+            background-color: white; /* White background for text area */
+            border: 1px solid black; /* Thin black border */
+            border-radius: 15px; /* Curved edges */
+            padding: 10px 50px 50px 50px; /* Reduced top padding (10px), and keep 20px for sides and bottom */
+        }
+
+        /* Set font size to 22px for paragraphs and spans */
+        p, span {
+            font-size: 22px;
+        }
+
+        /* Explicitly set font sizes for headers */
+        h1 {
+            font-size: 32px;
+        }
+
+        h2 {
+            font-size: 28px;
+        }
+
+        h3 {
+            font-size: 26px;
+        }
+
+        /* Center the grid container */
+        .image-grid-container {
+            display: flex;
+            justify-content: center; /* Center the grid horizontally */
+            padding: 20px; /* Optional padding around the grid */
+        }
+
+        /* Grid settings */
+        .image-grid {
+            display: grid; /* Use grid layout */
+            grid-template-columns: repeat(2, 1fr); /* Create 2 equal columns */
+            gap: 10px; /* Add spacing between the images */
+            margin: 20px 0; /* Add vertical spacing before and after the image grid */
+        }
+
+        /* Images in grid */
+        .image-grid img {
+            width: 90%;
+            height: auto; /* Maintain aspect ratio */
+        }
+        /* Make the video responsive */
+        video {
+            width: 100%;
+            height: auto; /* Ensure aspect ratio is maintained */
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 style="text-align: center;">Chordle (Chuck + Wordle)</h1>
+        <h3 style="text-align: center;"><em>Homework 3 Milestone B</em></h3>
+        <p>&nbsp;</p>
+        <p><strong>Description</strong></p>
+        <p>Wordle with a musical twist!</p>
+
+        <!-- Embedded video with controls, autoplay, and loop -->
+        <div style="text-align: center;">
+            <video controls autoplay loop muted>
+                <source src="Music 256A Sequencer Milestone B.mp4" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+        </div>
+
+        <!-- Image grid with 2 columns and 2 rows -->
+        <div class="image-grid">
+            <img src="img1.png" alt="Image 1">
+            <img src="img2.png" alt="Image 2">
+        </div>
+
+        <h3 style="text-align: center;"><em>Milestone A</em></h3>
+        <p><strong>Research</strong></p>
+        <p>Many digital sequencers (such as those that come by default in DAWs) are pretty much straightforward grids, most likely because they need to be practical and accessible to the majority of users. This ease-of-use is good design, but it isn't exactly interesting from an artistic perspective.</p>
+        <p>Searching for more creative uses of sequencers, I looked at Eurorack modules, where there is usually some traditional concept being used in a unique way. I own the book&nbsp;<a href="https://bjooks.com/products/patch-tweak-exploring-modular-synthesis"><em>Patch &amp; Tweak - Exploring Modular Synthesis</em></a> and reread the section on sequencers to get some new ideas. Here are just a few:</p>
+        <ul>
+        <li><a href="https://www.makenoisemusic.com/modules/rene/">Make Noise's Ren&eacute;</a>: a "3D" sequencer where sequences are stored in cartesian coordinates and X, Y, and Z dimensions can be stepped through independently in different orders. Time does not have to move "left to right" (but can of course), but can step through the 3D cube based on different patterns and algorithms.</li>
+        <li><a href="https://busycircuits.com/alm034/">Pamela's Pro Workout</a>: This is more of a clock generator than a sequencer, but it can be used to trigger steps in a sequence in unique timings. I particularly like the Euclidean patterns generator which takes a sequence length (e.g. 20), the number of "hits" (e.g. 11) and "produces a pattern based on the hits being as equidistant from each other as possible." These patterns can be rotated (i.e. changing the start position), padded with rests, and have the hits have a probability of not triggering.</li>
+        <li><a href="https://www.kilpatrickaudio.com/?p=K4815">Kilpatrick K4815 Pattern Generator</a>: This sequencer generates notes and rhythms by using a musical scale and a visual pattern. The user only controls the "big picture" (<em>how&nbsp;</em>the sequencer reacts), not the actual notes themselves. Instead, an algorithm determines which notes are placed where based on these general parameters.</li>
+        </ul>
+        <p><strong>Ideas</strong></p>
+        <p>1. <em>Chordle</em> (Chuck + <a href="https://www.nytimes.com/games/wordle/index.html">Wordle</a>)&nbsp;</p>
+        <ul>
+        <li>Each game of wordle represents a sequence (5 letter word + 6 chances to guess would be max 30-step sequence; 3 letter word + 3 chances to guess would be max 9-step sequence).</li>
+        <li>Multiple games of varying lengths can be played at once, allowing for both polyphony and polyrhythms. (You could move between the different games, you don't have to finish one game to move on to the next).</li>
+        <li>Green (i.e. correct letter in the correct spot) means always trigger, Yellow (i.e. correct letter in an incorrect spot) triggers with a certain probability, Gray (i.e. incorrect letter) is a rest (no trigger)</li>
+        <li>Games are stepped through based on different patterns (it doesn't have to be top-left to bottom-right).&nbsp;</li>
+        <li>Typing speed determines the tempo</li>
+        <li>Guesses (and specifically the letters of a guess) determine a bunch of different things (this is where I haven't figured out everything yet). Some possibilities:
+        <ul>
+        <li>A-Z could map to notes (such as % 12 for a little over 2 octaves of 12 notes) OR Letters could map to different samples</li>
+        <li>Different letters could be modifiers (I - increase, D - decrease for volume/pitch/whatever; S - sharp, etc.) that would only activate when there was a trigger (i.e. letter in the correct spot)</li>
+        <li>The frequency of letters used in a game (such as 25% As, 10% Bs, etc.) could correspond to how often those notes are played</li>
+        </ul>
+        </li>
+        <li>Game progress could also modify the sound (how many correct guesses, how many green vs. yellow squares, etc.) which could determine things like yellow square hit-probability, the sequence pattern to follow, and more.</li>
+        <li>Possible modifiers
+        <ul>
+        <li>Shift individual rows / columns.</li>
+        <li>Transpose matrix?</li>
+        <li>Rotate words?</li>
+        </ul>
+        </li>
+        <li>A crazy idea that Kunwoo and I discussed:
+        <ul>
+        <li>3D wordle? Take the Rubik's cube idea (below) and mix it with wordle</li>
+        <li>Each "cube" is associated with only one word, which would give you six ways to get to that word (i.e. six planes of differing sequence patterns). In this way, if you "beat" one side and learn the word, it isn't really about winning when playing the other sides for the same cube, but instead, it's about getting to that word in an interesting way (creating a unique sequence).</li>
+        <li>Can possibly rotate columns and rows (like a Rubik's cube) to further create differing sequence values.</li>
+        </ul>
+        </li>
+        </ul>
+
+        <div class="image-grid-container">
+            <div class="image-grid">
+                <img src="chordleIdea.jpg" alt="Image 1">
+            </div>
+        </div>
+
+        <p>2. Roads</p>
+        <ul>
+        <li>Create multiple roads in parallel, where each road length corresponds to sequence length</li>
+        <li>Cars drive on the road, triggering events</li>
+        <li>The speed at which the cars drive is the tempo, the position of cars (how far apart they are from each other) could map to swing</li>
+        <li>Multiple cars (playheads) could drive on a single road (sequence), triggering elements in a single sequence in unique rhythms</li>
+        <li>Roads can have inclines (corresponding to attack), plateaus (sustain), and declines (decay). The height of these roads could correspond to amplitude (and create a typical ASR envelope) or even map to pitch (where inclines / declines map to a glide/slew for moving between pitches)</li>
+        <li>Roads could have different "weather conditions", icy roads, rain, potholes, etc. that could affect timbral parameters, such as adding distortion, reverb, delay, etc.</li>
+        </ul>
+
+        <div class="image-grid-container">
+            <div class="image-grid">
+                <img src="roadsIdea.jpg" alt="Image 1">
+            </div>
+        </div>
+
+        <p>3. Rubik's cube</p>
+        <ul>
+        <li>Similar to my 3D wordle idea but I actually thought of this one first.</li>
+        <li>Each color corresponds to a sample (or rest). The sequencer steps through the current face of the rubik's cube.</li>
+        <li>You can have multiple Rubik's cubes at a time of different sizes: 2x2, 3x3, 8x8, etc.
+        <ul>
+        <li>Use even weirder Rubik's cube shapes? They come in hexagons, pyramids, ovals, etc. which could change the step pattern.</li>
+        </ul>
+        </li>
+        <li>The user can manipulate each of the available Rubik's cubes by swapping to a different face, rotating the current face (counter-)clockwise, or rotating any of the horizontal or vertical "slices". Any of these actions will change the sequence.</li>
+        </ul>
+
+        <div class="image-grid-container">
+            <div class="image-grid">
+                <img src="cubeIdea.jpg" alt="Image 1">
+            </div>
+        </div>
+
+        <p>&nbsp;</p>
+        <p style="text-align: center;"><a href="https://ccrma.stanford.edu/~gloliva/256A/"><span style="font-weight: 400;">Back</span></a></p>
+    </div>
+</body>
+</html>

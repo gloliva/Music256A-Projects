@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Musical Flight</title>
+    <style>
+        /* Set light blue background for the entire page */
+        body {
+            background-color: #e0f7fa; /* Light blue background */
+        }
+
+        /* Add a container div with a max width and centering */
+        .container {
+            width: 70%; /* Set the width to 70% of the screen */
+            margin: 0 auto; /* Center the container on the page */
+            background-color: white; /* White background for text area */
+            border: 1px solid black; /* Thin black border */
+            border-radius: 15px; /* Curved edges */
+            padding: 10px 50px 50px 50px; /* Reduced top padding (10px), and keep 20px for sides and bottom */
+        }
+
+        /* Set font size to 22px for paragraphs and spans */
+        p, span {
+            font-size: 22px;
+        }
+
+        /* Explicitly set font sizes for headers */
+        h1 {
+            font-size: 32px;
+        }
+
+        h2 {
+            font-size: 28px;
+        }
+
+        h3 {
+            font-size: 26px;
+        }
+
+        /* Styles for the image grid container */
+        .image-grid {
+            display: grid; /* Use grid layout */
+            grid-template-columns: repeat(2, 1fr); /* Create 2 equal columns */
+            gap: 10px; /* Add spacing between the images */
+            margin: 20px 0; /* Add vertical spacing before and after the image grid */
+        }
+
+        /* Ensure each image scales with the browser window */
+        .image-grid img {
+            width: 100%; /* Make each image take up 100% of its grid cell */
+            height: auto; /* Maintain aspect ratio */
+        }
+
+        /* Make the video responsive */
+        video {
+            width: 100%;
+            height: auto; /* Ensure aspect ratio is maintained */
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 style="text-align: center;">Musical Flight</h1>
+        <h3 style="text-align: center;"><em>Homework 2 Visualizer</em></h3>
+        <p>&nbsp;</p>
+        <p><strong>Description</strong></p>
+        <p>Musical Flight is an audio visualizer where birds follow the sound of music.</p>
+
+        <!-- Embedded video with controls, autoplay, and loop -->
+        <div style="text-align: center;">
+            <video controls autoplay loop muted>
+                <source src="Musical Flight.mp4" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+        </div>
+
+        <p style="text-align: center;"><a href="https://www.youtube.com/watch?v=3cWNk_miqxc"><span style="font-weight: 400;">Watch on YouTube</span></a></p>
+
+        <!-- Image grid with 2 columns and 2 rows -->
+        <div class="image-grid">
+            <img src="img1.jpg" alt="Image 1">
+            <img src="img2.jpg" alt="Image 2">
+            <img src="img3.jpg" alt="Image 3">
+            <img src="img4.jpg" alt="Image 4">
+        </div>
+
+        <p><strong>Instructions</strong></p>
+        <p>How to run:</p>
+        <p>```</p>
+        <pre><code class="language-bash">
+        $ chuck hw2_main.ck
+        </code></pre>
+        <p>```</p>
+        <p>Built on MacOS M1</p>
+        <p>&nbsp;</p>
+        <p><strong>Reflection</strong></p>
+        <p>The goal of this visualizer was to have each bird that landed on the wire represent a musical voice. Given more time, I would have liked there to be more birds landing and taking off from the wire at various intervals, with "voices" coming and going more frequently. Additionally, I hardcoded the music and I wish that there were more random elements to it, such as birds flying by adding in little melodic lines that are generated.&nbsp;</p>
+        <p>This project took so much longer than I anticipated... As I stated in the previous week's reading response, I spent too much time trying to add little flourishes in the beginning when I needed to just get the proof-of-concept down for the full narrative.</p>
+        <p>Regarding difficulties... there were a&nbsp;<em>TON</em>. My envelope follower worked up until yesterday, no idea why it stopped working. It's pretty much just the code Kunwoo provided us; I tried debugging it for a solid 30 minutes trying all sorts of fixes (even setting it back to its initial state from the milestone, where <em>it worked</em>) and it just wouldn't give me a non-null result. A weird issue I just encountered hours before the due date is that the program only runs smoothly when it is played from my second external monitor: if it's played from my Mac laptop display or my primary external monitor display I experience terrible performance issues. No idea why that is, and I'm not going to question it as long as some form of it<em> works</em>.&nbsp;</p>
+        <p>Overall I am happy with the results even if I only implemented about 40% of what I wanted to do.</p>
+        <p><strong>Chuck Code</strong></p>
+        <p style="text-align: left;"><a href="https://ccrma.stanford.edu/~gloliva/256A/HW2/hw2_main.ck"><span style="font-weight: 400;">View Chuck Code Here</span></a></p>
+        <p>&nbsp;</p>
+        <p style="text-align: center;"><a href="https://ccrma.stanford.edu/~gloliva/256A/"><span style="font-weight: 400;">Back</span></a></p>
+    </div>
+</body>
+</html>
