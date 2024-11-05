@@ -945,44 +945,5 @@ fun void main() {
 }
 
 
-// TESTING
-fun void testRotate() {
-    ChordleGrid grid(6, 5);
-    grid.setLetter("X", 0, 0);
-    grid.setLetter("C", 0, 1);
-
-    repeat(120) {
-        GG.nextFrame() => now;
-    }
-
-    grid.grid[0][1].rotate();
-}
-
-fun void testFile() {
-    FileReader file;
-
-    file.parseFile("5letters.txt") @=> WordSet set;
-
-    <<< "Words size: ", set.size() >>>;
-
-    repeat (4) {
-        set.getRandom() => string word;
-        <<< "Random Word", word >>>;
-    }
-}
-
-fun void testKeyboard() {
-    KeyPoller kp();
-
-    while (true) {
-        kp.getKeyPress() @=> Key keys[];
-
-        for (Key key : keys) {
-            <<< "Key: ", key.key >>>;
-        }
-        GG.nextFrame() => now;
-    }
-}
-
 // Run
 main();
