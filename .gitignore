@@ -1,0 +1,14 @@
+*.DS_Store
+
+# Chugl stuff
+*.ini
+
+# audio files
+*.wav
+
+# images
+*.jpg
+
+# video
+*.mov
+*.mp4
