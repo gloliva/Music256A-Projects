@@ -51,6 +51,10 @@ public class KeyPoller {
     "LEFT_ARROW" => string LEFT_ARROW;
     "RIGHT_ARROW" => string RIGHT_ARROW;
 
+    // "Rotate" Keys
+    "LEFT_BRACKET" => string LEFT_BRACKET;
+    "RIGHT_BRACKET" => string RIGHT_BRACKET;
+
     // "Movement" Keys
     "MOVE_UP" => string MOVE_UP;
     "MOVE_DOWN" => string MOVE_DOWN;
@@ -109,6 +113,9 @@ public class KeyPoller {
         if (GWindow.keyDown(GWindow.Key_Backspace)) keys << new SpecialKey(this.BACKSPACE);
         if (GWindow.keyDown(GWindow.Key_Enter)) keys << new SpecialKey(this.ENTER);
         if (GWindow.keyDown(GWindow.Key_Space)) keys << new SpecialKey(this.SPACE);
+
+        if (GWindow.keyDown(GWindow.Key_LeftBracket)) keys << new SpecialKey(this.LEFT_BRACKET);
+        if (GWindow.keyDown(GWindow.Key_RightBracket)) keys << new SpecialKey(this.RIGHT_BRACKET);
 
         if (GWindow.keyDown(GWindow.Key_Up) && !GWindow.key(GWindow.Key_LeftShift)) keys << new SpecialKey(this.UP_ARROW);
         if (GWindow.keyDown(GWindow.Key_Down) && !GWindow.key(GWindow.Key_LeftShift)) keys << new SpecialKey(this.DOWN_ARROW);

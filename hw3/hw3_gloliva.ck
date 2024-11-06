@@ -406,8 +406,8 @@ class ChordleGrid extends GGen {
     }
 
     fun void rotate(float rotX, float rotY, float rotZ) {
+        rotY => this.rotateY;
         rotX => this.rotX;
-        rotY => this.rotY;
         rotZ => this.rotZ;
     }
 }
@@ -436,8 +436,8 @@ class ChordleCube extends GGen {
         numCols / 2. => float shift;
         -shift => this.posZ;
         this.initSides(shift);
-        this.hideColumn("right", numCols - 1);
-        this.hideColumn("left", numCols - 1);
+        // this.hideColumn("right", numCols - 1);
+        // this.hideColumn("left", numCols - 1);
 
         // Set active grid
         this.sides[this.sidesMapping["front"]] @=> this.activeGrid;
@@ -457,6 +457,7 @@ class ChordleCube extends GGen {
         // Back
         ChordleGrid back(numRows, numCols);
         back.setLayerPos(0., 0., shift - 0.5 - (this.numLayers - 1));
+        back.rotate(Math.PI, Math.PI, Math.PI);
         back @=> this.sides[1];
         1 => this.sidesMapping["back"];
         back --> this;
@@ -464,7 +465,7 @@ class ChordleCube extends GGen {
         // Right
         ChordleGrid right(numRows, numCols);
         right.setLayerPos(shift - 0.5 , 0., 0.);
-        right.rotate(0., -Math.PI / 2, 0.);
+        right.rotate(0., Math.PI / 2, 0.);
         right @=> this.sides[2];
         2 @=> this.sidesMapping["right"];
         right --> this;
@@ -472,7 +473,7 @@ class ChordleCube extends GGen {
         // Left
         ChordleGrid left(numRows, numCols);
         left.setLayerPos(0.5 - shift , 0., 0.);
-        left.rotate(0., Math.PI / 2, 0.);
+        left.rotate(0., -Math.PI / 2, 0.);
         left @=> this.sides[3];
         3 => this.sidesMapping["left"];
         left --> this;
@@ -502,8 +503,6 @@ class ChordleCube extends GGen {
             GG.nextFrame() => now;
         }
 
-        startRotY + endRotY => this.rotY;
-
         // Update side mapping
         this.sidesMapping["front"] => int currFront;
         this.sidesMapping["back"] => int currBack;
@@ -530,8 +529,6 @@ class ChordleCube extends GGen {
             -rotDelta => this.rotateY;
             GG.nextFrame() => now;
         }
-
-        startRotY - endRotY => this.rotY;
 
         // Update side mapping
         this.sidesMapping["front"] => int currFront;
@@ -582,7 +579,7 @@ class ChordleGame {
     // Winning words
     WordSet wordSet;
     string gameWord;
-    string rowLetters[0];
+    string rowLetters[4][0];
 
     // KeyPoller
     KeyPoller kp;
@@ -686,9 +683,9 @@ class ChordleGame {
         this.getGameLetterFreq(gameLetterFreq);
 
         // Loop through initially to determine exact letter matching
-        int matches[this.rowLetters.size()];
-        for (int colIdx; colIdx < this.rowLetters.size(); colIdx++) {
-            this.rowLetters[colIdx] => string letter;
+        int matches[this.rowLetters[this.activeGridIdx].size()];
+        for (int colIdx; colIdx < this.rowLetters[this.activeGridIdx].size(); colIdx++) {
+            this.rowLetters[this.activeGridIdx][colIdx] => string letter;
             this.gameWord.find(letter, colIdx) => int gameWordIdx;
             if (colIdx == gameWordIdx) {
                 BlockMode.EXACT_MATCH => matches[colIdx];
@@ -697,8 +694,8 @@ class ChordleGame {
         }
 
         // Loop through againt to determine correct letters in the wrong spot
-        for (int colIdx; colIdx < this.rowLetters.size(); colIdx++) {
-            this.rowLetters[colIdx] => string letter;
+        for (int colIdx; colIdx < this.rowLetters[this.activeGridIdx].size(); colIdx++) {
+            this.rowLetters[this.activeGridIdx][colIdx] => string letter;
             this.gameWord.find(letter) => int gameWordIdx;
             if (colIdx != gameWordIdx && gameWordIdx != -1 && gameLetterFreq[letter] > 0) {
                 BlockMode.LETTER_MATCH => matches[colIdx];
@@ -707,7 +704,7 @@ class ChordleGame {
         }
 
         // Loop through again to rotate each block
-        for (int colIdx; colIdx < this.rowLetters.size(); colIdx++) {
+        for (int colIdx; colIdx < this.rowLetters[this.activeGridIdx].size(); colIdx++) {
             // Get mode
             matches[colIdx] => int mode;
 
@@ -737,25 +734,31 @@ class ChordleGame {
                         if (key.key == kp.BACKSPACE && currPlayerCol[this.activeGridIdx] > 0) {
                             // Delete letter in current row
                             this.grid.removeLetter(currPlayerRow[this.activeGridIdx], currPlayerCol[this.activeGridIdx] - 1);
-                            this.rowLetters.popBack();
+                            this.rowLetters[this.activeGridIdx].popBack();
                             currPlayerCol[this.activeGridIdx]--;
                         } else if (key.key == kp.ENTER && currPlayerCol[this.activeGridIdx] == numCols) {
                             // Check current row and move to next
                             this.checkRow();
-                            this.rowLetters.reset();
+                            this.rowLetters[this.activeGridIdx].reset();
                             currPlayerRow[this.activeGridIdx]++;
                             0 => currPlayerCol[this.activeGridIdx];
+                        } else if (key.key == kp.LEFT_BRACKET) {
+                            this.cube.rotateLeft();
+                        } else if (key.key == kp.RIGHT_BRACKET) {
+                            this.cube.rotateRight();
                         }
                     } else if (Type.of(key).name() == kp.LETTER_KEY && currPlayerCol[this.activeGridIdx] < numCols) {
                         // Add letter to current row
                         this.grid.setLetter(key.key, currPlayerRow[this.activeGridIdx], currPlayerCol[this.activeGridIdx]);
-                        this.rowLetters << key.key;
+                        this.rowLetters[this.activeGridIdx] << key.key;
                         currPlayerCol[this.activeGridIdx]++;
                     }
                 }
             }
 
             // Next frame
+            this.cube.activeGridIdx => this.activeGridIdx;
+            this.cube.activeGrid @=> this.grid;
             GG.nextFrame() => now;
         }
 
