@@ -369,6 +369,20 @@ class ChordleGrid extends GGen {
         }
     }
 
+    fun void hideColumn(int col) {
+        // TODO: instead of hiding the entire LB,
+        // just hide the borders and side panels
+        for (int row; row < this.numRows; row++) {
+            this.grid[row][col] --< this;
+        }
+    }
+
+    fun void showColumn(int col) {
+        for (int row; row < this.numRows; row++) {
+            this.grid[row][col] --> this;
+        }
+    }
+
     fun void setColor(int row, int col, vec3 color, float intensity, int permanent) {
         if (permanent) {
             this.grid[row][col].setPermanentColor(color, intensity);
@@ -385,23 +399,33 @@ class ChordleGrid extends GGen {
         return this.grid[row][col].mode();
     }
 
-    fun void setGridPos(float x, float y) {
+    fun void setLayerPos(float x, float y, float z) {
         x => this.posX;
         y => this.posY;
+        z => this.posZ;
     }
 
-    fun void setLayerPos(float z) {
-        z => this.posZ;
+    fun void rotate(float rotX, float rotY, float rotZ) {
+        rotX => this.rotX;
+        rotY => this.rotY;
+        rotZ => this.rotZ;
     }
 }
 
 
 // Chordle Cube
 class ChordleCube extends GGen {
-    ChordleGrid cube[0];
+    // Grids
+    ChordleGrid sides[6];
+    int sidesMapping[0];
+
+    // Size
     int numRows;
     int numCols;
     int numLayers;
+
+    // Active
+    ChordleGrid @ activeGrid;
 
     fun @construct(int numRows, int numCols) {
         numRows => this.numRows;
@@ -410,23 +434,59 @@ class ChordleCube extends GGen {
 
         numCols / 2. => float zShift;
         -zShift => this.posZ;
+        this.initSides(zShift);
+        this.hideColumn("right", numCols - 1);
+        this.hideColumn("left", numCols - 1);
 
-        for (int layer; layer < this.numLayers; layer++) {
-            ChordleGrid grid(numRows, numCols);
-            zShift - (0.5) - layer => float layerPos;
-            grid.setLayerPos(layerPos);
-            this.cube << grid;
-        }
-
-        for (ChordleGrid grid : this.cube) {
-            grid --> this;
-        }
-
-        // Connections
-        this --> GG.scene();
+        // Set active grid
+        this.sides[this.sidesMapping["front"]] @=> this.activeGrid;
 
         // Names
         "Chordle 3D Cube" => this.name;
+    }
+
+    fun void initSides(float shift) {
+        // Front
+        ChordleGrid front(numRows, numCols);
+        front.setLayerPos(0., 0., shift - 0.5);
+        front @=> this.sides[0];
+        0 => this.sidesMapping["front"];
+        front --> this;
+
+        // Back
+        ChordleGrid back(numRows, numCols);
+        back.setLayerPos(0., 0., shift - 0.5 - (this.numLayers - 1));
+        back @=> this.sides[1];
+        1 => this.sidesMapping["back"];
+        back --> this;
+
+        // Right
+        ChordleGrid right(numRows, numCols);
+        right.setLayerPos(shift - 0.5 , 0., 0.);
+        right.rotate(0., -Math.PI / 2, 0.);
+        right @=> this.sides[2];
+        2 @=> this.sidesMapping["right"];
+        right --> this;
+
+        // Left
+        ChordleGrid left(numRows, numCols);
+        left.setLayerPos(0.5 - shift , 0., 0.);
+        left.rotate(0., Math.PI / 2, 0.);
+        left @=> this.sides[3];
+        3 => this.sidesMapping["left"];
+        left --> this;
+    }
+
+    fun void hideColumn(string side, int col) {
+        this.sidesMapping[side] => int sideIdx;
+        this.sides[sideIdx] @=> ChordleGrid grid;
+        grid.hideColumn(col);
+    }
+
+    fun void showColumn(string side, int col) {
+        this.sidesMapping[side] => int sideIdx;
+        this.sides[sideIdx] @=> ChordleGrid grid;
+        grid.showColumn(col);
     }
 
     fun void rotateLeft() {
@@ -458,6 +518,11 @@ class ChordleCube extends GGen {
 
         startRotY - endRotY => this.rotY;
     }
+
+    fun void setCubePos(float x, float y) {
+        x => this.posX;
+        y => this.posY;
+    }
 }
 
 
@@ -469,6 +534,7 @@ class ChordleGame {
     int numLayers;
 
     // Grid
+    ChordleCube cube;
     ChordleGrid grid;
 
     // Current player typing position
@@ -513,8 +579,10 @@ class ChordleGame {
         numRows => this.numRows;
         numCols => this.numCols;
 
-        // Grid
-        new ChordleGrid(numRows, numCols) @=> this.grid;
+        // Cube
+        new ChordleCube(numRows, numCols) @=> this.cube;
+        // new ChordleGrid(numRows, numCols) @=> this.grid;
+        this.cube.activeGrid @=> this.grid;
 
         // Game word
         wordSet.getRandom(1) => this.gameWord;
@@ -546,8 +614,8 @@ class ChordleGame {
         mode => this.active;
     }
 
-    fun void setGridPos(float x, float y) {
-        this.grid.setGridPos(x, y);
+    fun void setCubePos(float x, float y) {
+        this.cube.setCubePos(x, y);
     }
 
     fun initAudio(SndBuf buffers[]) {
@@ -895,10 +963,10 @@ class GameManager {
                         this.sets[colSize] @=> WordSet set;
                         ChordleGame game(set, this.beat, N, M);
                         game.setActive(0);
-                        game.setGridPos(5.5 * this.numCols, 0.);  // TODO: update where grid is set
+                        game.setCubePos(5.5 * this.numCols, 0.);  // TODO: update where grid is set
                         game.setTempo(120., divider);
                         game.initAudio(this.buffers);
-                        this.screen.addToScreen(game.grid);
+                        this.screen.addToScreen(game.cube);
 
                         // Start new game
                         spork ~ game.play();
