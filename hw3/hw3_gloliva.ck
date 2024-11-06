@@ -116,7 +116,6 @@ class LetterBox extends GGen {
         @(10., 10., 10.) => letterColor;
         @(letterColor.x, letterColor.y, letterColor.z, 0.) => letterPost.color;
         0.01 => letterPost.posZ;
-        //(Math.PI) => letterPost.rotX;
 
         // Init border
         Color.BLACK => border.color;
@@ -284,7 +283,6 @@ class ChordleGrid extends GGen {
     // Size
     float gridLength;
     float gridWidth;
-    float gridDepth;
 
     fun @construct(int numRows, int numCols) {
         numRows => this.numRows;
@@ -391,6 +389,75 @@ class ChordleGrid extends GGen {
         x => this.posX;
         y => this.posY;
     }
+
+    fun void setLayerPos(float z) {
+        z => this.posZ;
+    }
+}
+
+
+// Chordle Cube
+class ChordleCube extends GGen {
+    ChordleGrid cube[0];
+    int numRows;
+    int numCols;
+    int numLayers;
+
+    fun @construct(int numRows, int numCols) {
+        numRows => this.numRows;
+        numCols => this.numCols;
+        numCols => this.numLayers;
+
+        numCols / 2. => float zShift;
+        -zShift => this.posZ;
+
+        for (int layer; layer < this.numLayers; layer++) {
+            ChordleGrid grid(numRows, numCols);
+            zShift - (0.5) - layer => float layerPos;
+            grid.setLayerPos(layerPos);
+            this.cube << grid;
+        }
+
+        for (ChordleGrid grid : this.cube) {
+            grid --> this;
+        }
+
+        // Connections
+        this --> GG.scene();
+
+        // Names
+        "Chordle 3D Cube" => this.name;
+    }
+
+    fun void rotateLeft() {
+        Math.PI / 2 => float endRotY;
+        this.posY() => float startRotY;
+        0. => float currRotY;
+
+        while (currRotY < endRotY) {
+            endRotY * GG.dt() => float rotDelta;
+            rotDelta + currRotY => currRotY;
+            rotDelta => this.rotateY;
+            GG.nextFrame() => now;
+        }
+
+        startRotY + endRotY => this.rotY;
+    }
+
+    fun void rotateRight() {
+        Math.PI / 2 => float endRotY;
+        this.posY() => float startRotY;
+        0. => float currRotY;
+
+        while (currRotY < endRotY) {
+            endRotY * GG.dt() => float rotDelta;
+            rotDelta + currRotY => currRotY;
+            -rotDelta => this.rotateY;
+            GG.nextFrame() => now;
+        }
+
+        startRotY - endRotY => this.rotY;
+    }
 }
 
 
@@ -399,6 +466,7 @@ class ChordleGame {
     // Grid size
     int numRows;
     int numCols;
+    int numLayers;
 
     // Grid
     ChordleGrid grid;
@@ -866,6 +934,10 @@ class GameScreen extends GGen {
     fun addToScreen(ChordleGrid grid) {
         grid --> this;
     }
+
+    fun addToScreen(ChordleCube cube) {
+        cube --> this;
+    }
 }
 
 
@@ -943,6 +1015,36 @@ fun void main() {
         UI.end();
     }
 }
+
+
+fun void testCube() {
+    ChordleCube cube(5, 5);
+
+    repeat(120) {
+        GG.nextFrame() => now;
+    }
+
+    cube.rotateRight();
+
+    repeat(120) {
+        GG.nextFrame() => now;
+    }
+
+    cube.rotateRight();
+
+    repeat(120) {
+        GG.nextFrame() => now;
+    }
+
+    cube.rotateLeft();
+
+    while (true) {
+        // GG.dt() => cube.rotateY;
+        GG.nextFrame() => now;
+    }
+}
+
+// spork ~ testCube();
 
 
 // Run
