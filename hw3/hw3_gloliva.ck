@@ -425,6 +425,7 @@ class ChordleCube extends GGen {
     int numLayers;
 
     // Active
+    int activeGridIdx;
     ChordleGrid @ activeGrid;
 
     fun @construct(int numRows, int numCols) {
@@ -432,9 +433,9 @@ class ChordleCube extends GGen {
         numCols => this.numCols;
         numCols => this.numLayers;
 
-        numCols / 2. => float zShift;
-        -zShift => this.posZ;
-        this.initSides(zShift);
+        numCols / 2. => float shift;
+        -shift => this.posZ;
+        this.initSides(shift);
         this.hideColumn("right", numCols - 1);
         this.hideColumn("left", numCols - 1);
 
@@ -489,7 +490,7 @@ class ChordleCube extends GGen {
         grid.showColumn(col);
     }
 
-    fun void rotateLeft() {
+    fun void rotateRight() {
         Math.PI / 2 => float endRotY;
         this.posY() => float startRotY;
         0. => float currRotY;
@@ -502,13 +503,27 @@ class ChordleCube extends GGen {
         }
 
         startRotY + endRotY => this.rotY;
+
+        // Update side mapping
+        this.sidesMapping["front"] => int currFront;
+        this.sidesMapping["back"] => int currBack;
+        this.sidesMapping["right"] => int currRight;
+        this.sidesMapping["left"] => int currLeft;
+
+        currFront => this.sidesMapping["right"];
+        currBack => this.sidesMapping["left"];
+        currRight => this.sidesMapping["back"];
+        currLeft => this.sidesMapping["front"];
+
+        this.setActiveGrid();
     }
 
-    fun void rotateRight() {
+    fun void rotateLeft() {
         Math.PI / 2 => float endRotY;
         this.posY() => float startRotY;
         0. => float currRotY;
 
+        // Rotate cube
         while (currRotY < endRotY) {
             endRotY * GG.dt() => float rotDelta;
             rotDelta + currRotY => currRotY;
@@ -517,11 +532,33 @@ class ChordleCube extends GGen {
         }
 
         startRotY - endRotY => this.rotY;
+
+        // Update side mapping
+        this.sidesMapping["front"] => int currFront;
+        this.sidesMapping["back"] => int currBack;
+        this.sidesMapping["right"] => int currRight;
+        this.sidesMapping["left"] => int currLeft;
+
+        currFront => this.sidesMapping["left"];
+        currBack => this.sidesMapping["right"];
+        currRight => this.sidesMapping["front"];
+        currLeft => this.sidesMapping["back"];
+
+        this.setActiveGrid();
+    }
+
+    fun void setActiveGrid() {
+        this.sidesMapping["front"] => this.activeGridIdx;
+        this.sides[this.activeGridIdx] @=> this.activeGrid;
     }
 
     fun void setCubePos(float x, float y) {
         x => this.posX;
         y => this.posY;
+    }
+
+    fun ChordleGrid getGridByIdx(int idx) {
+        return this.sides[idx];
     }
 }
 
@@ -536,10 +573,11 @@ class ChordleGame {
     // Grid
     ChordleCube cube;
     ChordleGrid grid;
+    int activeGridIdx;
 
     // Current player typing position
-    int currPlayerRow;
-    int currPlayerCol;
+    int currPlayerRow[4];
+    int currPlayerCol[4];
 
     // Winning words
     WordSet wordSet;
@@ -560,12 +598,11 @@ class ChordleGame {
     Event beat;
 
     // Sequencer position handling
-    int startVisuals;
-    int prevSeqRow;
-    int prevSeqCol;
-    int currSeqRow;
-    int currSeqCol;
-    vec3 prevSeqColor;
+    int startVisuals[4];
+    int prevSeqRow[4];
+    int prevSeqCol[4];
+    int currSeqRow[4];
+    int currSeqCol[4];
 
     // Audio
     int audioOn;
@@ -579,29 +616,21 @@ class ChordleGame {
         numRows => this.numRows;
         numCols => this.numCols;
 
-        // Cube
+        // Init Cube
         new ChordleCube(numRows, numCols) @=> this.cube;
-        // new ChordleGrid(numRows, numCols) @=> this.grid;
+        this.cube.activeGridIdx => this.activeGridIdx;
         this.cube.activeGrid @=> this.grid;
 
         // Game word
         wordSet.getRandom(1) => this.gameWord;
         <<< "Game word: ", this.gameWord >>>;
 
-        // set member variables
-        0 => this.currPlayerRow;
-        0 => this.currPlayerCol;
-        0 => this.active;
-        0 => this.complete;
-        0 => this.audioOn;
-
         // Default tempo
         this.setTempo(120., 1.);
 
         // Init Sequence member variables
-        0 => this.startVisuals;
-        -1 => this.prevSeqRow;
-        -1 => this.prevSeqCol;
+        initList(this.prevSeqRow, -1);
+        initList(this.prevSeqCol, -1);
     }
 
     fun void setTempo(float tempo, float clockDivider) {
@@ -683,7 +712,7 @@ class ChordleGame {
             matches[colIdx] => int mode;
 
             // Rotate current column block
-            spork ~ this.grid.revealBlock(this.currPlayerRow, colIdx, mode);
+            spork ~ this.grid.revealBlock(this.currPlayerRow[this.activeGridIdx], colIdx, mode);
 
             // Wait between each rotation
             now + 0.5::second => time end;
@@ -705,23 +734,23 @@ class ChordleGame {
                 this.kp.getKeyPress() @=> Key keys[];
                 for (Key key : keys) {
                     if (Type.of(key).name() == kp.SPECIAL_KEY) {
-                        if (key.key == kp.BACKSPACE && currPlayerCol > 0) {
+                        if (key.key == kp.BACKSPACE && currPlayerCol[this.activeGridIdx] > 0) {
                             // Delete letter in current row
-                            this.grid.removeLetter(currPlayerRow, currPlayerCol - 1);
+                            this.grid.removeLetter(currPlayerRow[this.activeGridIdx], currPlayerCol[this.activeGridIdx] - 1);
                             this.rowLetters.popBack();
-                            currPlayerCol--;
-                        } else if (key.key == kp.ENTER && currPlayerCol == numCols) {
+                            currPlayerCol[this.activeGridIdx]--;
+                        } else if (key.key == kp.ENTER && currPlayerCol[this.activeGridIdx] == numCols) {
                             // Check current row and move to next
                             this.checkRow();
                             this.rowLetters.reset();
-                            currPlayerRow++;
-                            0 => currPlayerCol;
+                            currPlayerRow[this.activeGridIdx]++;
+                            0 => currPlayerCol[this.activeGridIdx];
                         }
-                    } else if (Type.of(key).name() == kp.LETTER_KEY && currPlayerCol < numCols) {
+                    } else if (Type.of(key).name() == kp.LETTER_KEY && currPlayerCol[this.activeGridIdx] < numCols) {
                         // Add letter to current row
-                        this.grid.setLetter(key.key, currPlayerRow, currPlayerCol);
+                        this.grid.setLetter(key.key, currPlayerRow[this.activeGridIdx], currPlayerCol[this.activeGridIdx]);
                         this.rowLetters << key.key;
-                        currPlayerCol++;
+                        currPlayerCol[this.activeGridIdx]++;
                     }
                 }
             }
@@ -736,46 +765,52 @@ class ChordleGame {
         }
     }
 
-    fun void sequenceVisuals() {
+    fun void sequenceVisuals(int sideIdx) {
         // Wait until player completes first row
-        while ( !this.startVisuals ) {
+        while ( !this.startVisuals[sideIdx] ) {
             GG.nextFrame() => now;
         }
 
+        // Get grid
+        this.cube.getGridByIdx(sideIdx) @=> ChordleGrid grid;
+
         while (true) {
             // Set previous block's color
-            if (this.prevSeqRow >= 0 && this.prevSeqCol >= 0) {
-                this.grid.getColor(this.prevSeqRow, this.prevSeqCol) => vec3 color;
-                this.grid.setColor(this.prevSeqRow, this.prevSeqCol, color, 1., 0);
+            if (this.prevSeqRow[sideIdx] >= 0 && this.prevSeqCol[sideIdx] >= 0) {
+                grid.getColor(this.prevSeqRow[sideIdx], this.prevSeqCol[sideIdx]) => vec3 color;
+                grid.setColor(this.prevSeqRow[sideIdx], this.prevSeqCol[sideIdx], color, 1., 0);
             }
 
             // Set current block's color
-            this.grid.setColor(this.currSeqRow, this.currSeqCol, Color.RED, 1.5, 0);
+            grid.setColor(this.currSeqRow[sideIdx], this.currSeqCol[sideIdx], Color.RED, 1.5, 0);
             GG.nextFrame() => now;
         }
     }
 
-    fun void sequenceAudio() {
+    fun void sequenceAudio(int sideIdx) {
         if ( !this.audioOn ) {
             <<< "ERROR: audio is not enabled. Call `initAudio()` before this function." >>>;
             me.exit();
         }
 
         // Wait until player completes first row
-        while (this.currPlayerRow < 1) {
+        while (this.currPlayerRow[sideIdx] < 1) {
             this.quarterNote / this.clockDivider => now;
         }
 
         this.beat => now;
-        1 => this.startVisuals;
+        1 => this.startVisuals[sideIdx];
+
+        // Get grid
+        this.cube.getGridByIdx(sideIdx) @=> ChordleGrid grid;
 
         while (true) {
             // Do audio stuff here
-            this.grid.getMode(this.currSeqRow, this.currSeqCol) => int mode;
+            grid.getMode(this.currSeqRow[sideIdx], this.currSeqCol[sideIdx]) => int mode;
 
-            if (mode == BlockMode.EXACT_MATCH) {
+            if (mode == BlockMode.EXACT_MATCH && sideIdx == this.activeGridIdx) {
                 spork ~ this.playAudio(1.);
-            } else if (mode == BlockMode.LETTER_MATCH) {
+            } else if (mode == BlockMode.LETTER_MATCH && sideIdx == this.activeGridIdx) {
                 Math.random2f(0., 1.) => float chance;
                 if (chance > 0.5) spork ~ this.playAudio(0.5);
             }
@@ -785,14 +820,14 @@ class ChordleGame {
             this.env.value(0.);
 
             // Set previous values
-            this.currSeqCol => this.prevSeqCol;
-            this.currSeqRow => this.prevSeqRow;
+            this.currSeqCol[sideIdx] => this.prevSeqCol[sideIdx];
+            this.currSeqRow[sideIdx] => this.prevSeqRow[sideIdx];
 
             // Move to next square
-            this.currSeqCol + 1 => this.currSeqCol;
-            if (this.currSeqCol >= this.numCols) {
-                0 => this.currSeqCol;
-                (this.currSeqRow + 1) % this.currPlayerRow => this.currSeqRow;
+            this.currSeqCol[sideIdx] + 1 => this.currSeqCol[sideIdx];
+            if (this.currSeqCol[sideIdx] >= this.numCols) {
+                0 => this.currSeqCol[sideIdx];
+                (this.currSeqRow[sideIdx] + 1) % this.currPlayerRow[sideIdx] => this.currSeqRow[sideIdx];
             }
         }
     }
@@ -970,8 +1005,10 @@ class GameManager {
 
                         // Start new game
                         spork ~ game.play();
-                        spork ~ game.sequenceAudio();
-                        spork ~ game.sequenceVisuals();
+                        for(int idx; idx < 4; idx++) {
+                            spork ~ game.sequenceAudio(idx);
+                            spork ~ game.sequenceVisuals(idx);
+                        }
 
                         // Add game to GameManager
                         game @=> this.games[0][this.numCols];
@@ -1041,6 +1078,13 @@ class Transport {
 }
 
 
+fun void initList(int arr[], int init) {
+    for (int idx; idx < arr.size(); idx++) {
+        init => arr[idx];
+    }
+}
+
+
 // ************ //
 // MAIN PROGRAM //
 // ************ //
@@ -1087,6 +1131,7 @@ fun void main() {
 
 fun void testCube() {
     ChordleCube cube(5, 5);
+    cube --> GG.scene();
 
     repeat(120) {
         GG.nextFrame() => now;
