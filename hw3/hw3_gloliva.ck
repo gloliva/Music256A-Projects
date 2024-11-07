@@ -232,14 +232,45 @@ class LetterBox extends GGen {
         text => this.letterPre.text;
         text => this.letterPost.text;
         @(letterColor.x, letterColor.y, letterColor.z, 1.) => letterPre.color;
-        @(letterColor.x, letterColor.y, letterColor.z, 1.) => letterPost.color;
     }
 
     fun void removeLetter() {
         "." => letterPre.text;
         "." => letterPost.text;
         @(letterColor.x, letterColor.y, letterColor.z, 0.) => letterPre.color;
-        @(letterColor.x, letterColor.y, letterColor.z, 0.) => letterPost.color;
+    }
+
+    fun void hideBorder() {
+        this.border --< this;
+    }
+
+    fun void showBorder() {
+        this.border --> this;
+    }
+
+    fun void hidePanel(string panelPos) {
+        this.getPanel(panelPos) --< this;
+    }
+
+    fun void hideNonActivePanels() {
+        for (int idx; idx < 6; idx++) {
+            if (idx != this.activePanelIdx) {
+                this.panels[idx] --< this;
+            }
+        }
+    }
+
+    fun void showNonActivePanels() {
+        for (int idx; idx < 6; idx++) {
+            if (idx != this.activePanelIdx) {
+                <<< "IDX", idx >>>;
+                this.panels[idx] --> this;
+            }
+        }
+    }
+
+    fun void showPanel(string panelPos) {
+        this.getPanel(panelPos) --> this;
     }
 
     fun void setPos(float x, float y) {
@@ -251,6 +282,9 @@ class LetterBox extends GGen {
         Math.PI / 2 => float endRotX;
         0. => float currRotX;
 
+        // Enable post text
+        @(letterColor.x, letterColor.y, letterColor.z, 1.) => letterPost.color;
+
         while (currRotX < endRotX) {
             (endRotX * GG.dt()) + currRotX => currRotX;
             currRotX => this.rotX;
@@ -258,6 +292,9 @@ class LetterBox extends GGen {
         }
 
         endRotX => this.rotX;
+
+        // Disable initial text
+        @(letterColor.x, letterColor.y, letterColor.z, 0.) => letterPre.color;
     }
 
     fun void setTempColor(vec3 color, float intensity) {
@@ -369,17 +406,29 @@ class ChordleGrid extends GGen {
         }
     }
 
-    fun void hideColumn(int col) {
-        // TODO: instead of hiding the entire LB,
-        // just hide the borders and side panels
+    fun void hideEdges() {
         for (int row; row < this.numRows; row++) {
-            this.grid[row][col] --< this;
+            this.grid[row][0] @=> LetterBox lbStart;
+            this.grid[row][this.numCols - 1] @=> LetterBox lbEnd;
+
+            // Hide border
+            lbStart.hideBorder();
+            lbEnd.hideBorder();
+            lbStart.hideNonActivePanels();
+            lbEnd.hideNonActivePanels();
         }
     }
 
-    fun void showColumn(int col) {
+    fun void showEdges() {
         for (int row; row < this.numRows; row++) {
-            this.grid[row][col] --> this;
+            this.grid[row][0] @=> LetterBox lbStart;
+            this.grid[row][this.numCols - 1] @=> LetterBox lbEnd;
+
+            // Show border
+            lbStart.showBorder();
+            lbEnd.showBorder();
+            lbStart.showNonActivePanels();
+            lbEnd.showNonActivePanels();
         }
     }
 
@@ -436,8 +485,8 @@ class ChordleCube extends GGen {
         numCols / 2. => float shift;
         -shift => this.posZ;
         this.initSides(shift);
-        // this.hideColumn("right", numCols - 1);
-        // this.hideColumn("left", numCols - 1);
+        this.hideEdges("left");
+        this.hideEdges("right");
 
         // Set active grid
         this.sides[this.sidesMapping["front"]] @=> this.activeGrid;
@@ -479,16 +528,16 @@ class ChordleCube extends GGen {
         left --> this;
     }
 
-    fun void hideColumn(string side, int col) {
+    fun void hideEdges(string side) {
         this.sidesMapping[side] => int sideIdx;
         this.sides[sideIdx] @=> ChordleGrid grid;
-        grid.hideColumn(col);
+        grid.hideEdges();
     }
 
-    fun void showColumn(string side, int col) {
+    fun void showEdges(string side) {
         this.sidesMapping[side] => int sideIdx;
         this.sides[sideIdx] @=> ChordleGrid grid;
-        grid.showColumn(col);
+        grid.showEdges();
     }
 
     fun void rotateRight() {
@@ -502,6 +551,12 @@ class ChordleCube extends GGen {
             rotDelta => this.rotateY;
             GG.nextFrame() => now;
         }
+
+        // Update Panels and Borders
+        this.hideEdges("front");
+        this.hideEdges("back");
+        this.showEdges("left");
+        this.showEdges("right");
 
         // Update side mapping
         this.sidesMapping["front"] => int currFront;
@@ -529,6 +584,12 @@ class ChordleCube extends GGen {
             -rotDelta => this.rotateY;
             GG.nextFrame() => now;
         }
+
+        // Update Panels and Borders
+        this.hideEdges("front");
+        this.hideEdges("back");
+        this.showEdges("left");
+        this.showEdges("right");
 
         // Update side mapping
         this.sidesMapping["front"] => int currFront;
