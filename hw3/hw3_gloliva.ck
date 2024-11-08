@@ -744,7 +744,7 @@ class ChordleGame {
 
     // Game status
     int active;
-    int complete;
+    int complete[4];
 
     // Timing variables
     float tempo;
@@ -874,52 +874,59 @@ class ChordleGame {
             }
         }
 
-        this.checkGameComplete(matches) => this.complete;
+        this.checkGameComplete(matches) => this.complete[this.activeGridIdx];
     }
 
     fun void play() {
-        // Loop while word hasn't been found
-        while ( !this.complete ) {
-
+        while (true) {
             // If this game is the active game
             if ( this.active ) {
-                // Update game based on key presses
                 this.kp.getKeyPress() @=> Key keys[];
-                for (Key key : keys) {
-                    if (Type.of(key).name() == kp.SPECIAL_KEY) {
-                        if (key.key == kp.BACKSPACE && currPlayerCol[this.activeGridIdx] > 0) {
-                            // Delete letter in current row
-                            this.grid.removeLetter(currPlayerRow[this.activeGridIdx], currPlayerCol[this.activeGridIdx] - 1);
-                            this.rowLetters[this.activeGridIdx].popBack();
-                            currPlayerCol[this.activeGridIdx]--;
-                        } else if (key.key == kp.ENTER && currPlayerCol[this.activeGridIdx] == numCols) {
-                            // Check current row and move to next
-                            this.checkRow();
-                            this.rowLetters[this.activeGridIdx].reset();
-                            currPlayerRow[this.activeGridIdx]++;
-                            0 => currPlayerCol[this.activeGridIdx];
-                        } else if (key.key == kp.LEFT_BRACKET) {
-                            this.cube.rotateLeft();
-                        } else if (key.key == kp.RIGHT_BRACKET) {
-                            this.cube.rotateRight();
+                // If this side isn't complete
+                if ( !this.complete[this.activeGridIdx] ) {
+                    // Update game based on key presses
+                    for (Key key : keys) {
+                        if (Type.of(key).name() == kp.SPECIAL_KEY) {
+                            if (key.key == kp.BACKSPACE && currPlayerCol[this.activeGridIdx] > 0) {
+                                // Delete letter in current row
+                                this.grid.removeLetter(currPlayerRow[this.activeGridIdx], currPlayerCol[this.activeGridIdx] - 1);
+                                this.rowLetters[this.activeGridIdx].popBack();
+                                currPlayerCol[this.activeGridIdx]--;
+                            } else if (key.key == kp.ENTER && currPlayerCol[this.activeGridIdx] == numCols) {
+                                // Check current row and move to next
+                                this.checkRow();
+                                this.rowLetters[this.activeGridIdx].reset();
+                                currPlayerRow[this.activeGridIdx]++;
+                                0 => currPlayerCol[this.activeGridIdx];
+                            } else if (key.key == kp.LEFT_BRACKET) {
+                                this.cube.rotateLeft();
+                            } else if (key.key == kp.RIGHT_BRACKET) {
+                                this.cube.rotateRight();
+                            }
+                        } else if (Type.of(key).name() == kp.LETTER_KEY && currPlayerCol[this.activeGridIdx] < numCols) {
+                            // Add letter to current row
+                            this.grid.setLetter(key.key, currPlayerRow[this.activeGridIdx], currPlayerCol[this.activeGridIdx]);
+                            this.rowLetters[this.activeGridIdx] << key.key;
+                            currPlayerCol[this.activeGridIdx]++;
                         }
-                    } else if (Type.of(key).name() == kp.LETTER_KEY && currPlayerCol[this.activeGridIdx] < numCols) {
-                        // Add letter to current row
-                        this.grid.setLetter(key.key, currPlayerRow[this.activeGridIdx], currPlayerCol[this.activeGridIdx]);
-                        this.rowLetters[this.activeGridIdx] << key.key;
-                        currPlayerCol[this.activeGridIdx]++;
+                    }
+                } else {
+                    for (Key key : keys) {
+                        if (Type.of(key).name() == kp.SPECIAL_KEY) {
+                            // Still allow rotations for a completed game
+                            if (key.key == kp.LEFT_BRACKET) {
+                                this.cube.rotateLeft();
+                            } else if (key.key == kp.RIGHT_BRACKET) {
+                                this.cube.rotateRight();
+                            }
+                        }
                     }
                 }
             }
 
-            // Next frame
+            // Get Active Side
             this.cube.activeGridIdx => this.activeGridIdx;
             this.cube.activeGrid @=> this.grid;
-            GG.nextFrame() => now;
-        }
-
-        // This game is done
-        while (true) {
             GG.nextFrame() => now;
         }
     }
