@@ -44,6 +44,7 @@ public class KeyPoller {
     "SPACE" => string SPACE;
     "PLUS" => string PLUS;
     "MINUS" => string MINUS;
+    "SHIFT_BACKSPACE" => string SHIFT_BACKSPACE;
 
     // Arrow Keys
     "UP_ARROW" => string UP_ARROW;
@@ -110,7 +111,7 @@ public class KeyPoller {
         if (GWindow.keyDown(GWindow.Key_9)) keys << new NumberKey("9");
 
         // Special characters
-        if (GWindow.keyDown(GWindow.Key_Backspace)) keys << new SpecialKey(this.BACKSPACE);
+        if (GWindow.keyDown(GWindow.Key_Backspace) && !GWindow.key(GWindow.Key_LeftShift)) keys << new SpecialKey(this.BACKSPACE);
         if (GWindow.keyDown(GWindow.Key_Enter)) keys << new SpecialKey(this.ENTER);
         if (GWindow.keyDown(GWindow.Key_Space)) keys << new SpecialKey(this.SPACE);
 
@@ -131,6 +132,7 @@ public class KeyPoller {
         // Special characters while holding shift
         if (GWindow.key(GWindow.Key_Equal) && GWindow.key(GWindow.Key_LeftShift)) keys << new SpecialKey(this.PLUS);
         if (GWindow.key(GWindow.Key_Minus) && GWindow.key(GWindow.Key_LeftShift)) keys << new SpecialKey(this.MINUS);
+        if (GWindow.keyDown(GWindow.Key_Backspace) && GWindow.key(GWindow.Key_LeftShift)) keys << new SpecialKey(this.SHIFT_BACKSPACE);
 
         // Arrow keys while holding shift
         if (GWindow.key(GWindow.Key_Up) && GWindow.key(GWindow.Key_LeftShift)) keys << new SpecialKey(this.MOVE_UP);

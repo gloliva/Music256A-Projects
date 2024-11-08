@@ -35,6 +35,11 @@
     IDEA 3
     After beating the game, it rotates around each after each completion
 
+    IDEA 4:
+    - TODO: This is a good one!!!
+    - When you beat the game, a melody is created ontop of the cube
+    - Maybe it is based on the letters that you chose to get to the word
+
     Step Algorithms:
         * Bucket of algorithms for how to step through the sequence
         * When a game is beaten, calculate the edit distance of each line
@@ -332,12 +337,18 @@ class ChordleGrid extends GGen {
     float gridLength;
     float gridWidth;
 
+    // Beat Division
+    float beatDiv;
+
     fun @construct(int numRows, int numCols) {
         numRows => this.numRows;
         numCols => this.numCols;
 
         1. * this.numRows => this.gridLength;
         1. * this.numCols => this.gridWidth;
+
+        // Beat div
+        1. => this.beatDiv;
 
         // Instantiate grid
         for (int row; row < numRows; row++) {
@@ -393,6 +404,14 @@ class ChordleGrid extends GGen {
 
         this.grid[row][col] @=> LetterBox lb;
         lb.removeLetter();
+    }
+
+    fun void setBeatDiv(float beatDiv) {
+        beatDiv => this.beatDiv;
+    }
+
+    fun float getBeatDiv() {
+        return this.beatDiv;
     }
 
     fun void revealBlock(int row, int col, int mode) {
@@ -515,6 +534,9 @@ class ChordleCube extends GGen {
     int numCols;
     int numLayers;
 
+    // Rotation
+    float yCurrRotation;
+
     // Active
     int activeGridIdx;
     ChordleGrid @ activeGrid;
@@ -523,6 +545,9 @@ class ChordleCube extends GGen {
         numRows => this.numRows;
         numCols => this.numCols;
         numCols => this.numLayers;
+
+        // Rotation
+        0. => this.yCurrRotation;
 
         numCols / 2. => float shift;
         -shift => this.posZ;
@@ -541,6 +566,7 @@ class ChordleCube extends GGen {
         // Front
         ChordleGrid front(numRows, numCols);
         front.setLayerPos(0., 0., shift - 0.5);
+        front.setBeatDiv(1.); // Quarter notes
         front @=> this.sides[0];
         0 => this.sidesMapping["front"];
         front --> this;
@@ -548,6 +574,7 @@ class ChordleCube extends GGen {
         // Back
         ChordleGrid back(numRows, numCols);
         back.setLayerPos(0., 0., shift - 0.5 - (this.numLayers - 1));
+        back.setBeatDiv(4.); // Sixteenth notes
         back.rotate(Math.PI, Math.PI, Math.PI);
         back @=> this.sides[1];
         1 => this.sidesMapping["back"];
@@ -556,6 +583,7 @@ class ChordleCube extends GGen {
         // Right
         ChordleGrid right(numRows, numCols);
         right.setLayerPos(shift - 0.5 , 0., 0.);
+        right.setBeatDiv(2.); // Eighth notes
         right.rotate(0., Math.PI / 2, 0.);
         right @=> this.sides[2];
         2 @=> this.sidesMapping["right"];
@@ -564,6 +592,7 @@ class ChordleCube extends GGen {
         // Left
         ChordleGrid left(numRows, numCols);
         left.setLayerPos(0.5 - shift , 0., 0.);
+        left.setBeatDiv(0.5); // Half notes
         left.rotate(0., -Math.PI / 2, 0.);
         left @=> this.sides[3];
         3 => this.sidesMapping["left"];
@@ -620,6 +649,10 @@ class ChordleCube extends GGen {
             rotDelta => this.rotateY;
             GG.nextFrame() => now;
         }
+
+        // Adjust Y rotation to be exact position
+        this.yCurrRotation + endRotY => this.yCurrRotation;
+        this.yCurrRotation % (2 * Math.PI) => this.yCurrRotation;
 
         // Update Panels and Borders
         this.updateVisualsOnRotation();
@@ -716,7 +749,6 @@ class ChordleGame {
     // Timing variables
     float tempo;
     dur quarterNote;
-    float clockDivider;
     Event beat;
 
     // Sequencer position handling
@@ -748,16 +780,15 @@ class ChordleGame {
         <<< "Game word: ", this.gameWord >>>;
 
         // Default tempo
-        this.setTempo(120., 1.);
+        this.setTempo(120.);
 
         // Init Sequence member variables
         initList(this.prevSeqRow, -1);
         initList(this.prevSeqCol, -1);
     }
 
-    fun void setTempo(float tempo, float clockDivider) {
+    fun void setTempo(float tempo) {
         tempo => this.tempo;
-        clockDivider => this.clockDivider;
         (60. / tempo)::second => this.quarterNote;
     }
 
@@ -921,16 +952,16 @@ class ChordleGame {
             me.exit();
         }
 
+        // Get grid
+        this.cube.getGridByIdx(sideIdx) @=> ChordleGrid grid;
+
         // Wait until player completes first row
         while (this.currPlayerRow[sideIdx] < 1) {
-            this.quarterNote / this.clockDivider => now;
+            this.quarterNote / grid.beatDiv => now;
         }
 
         this.beat => now;
         1 => this.startVisuals[sideIdx];
-
-        // Get grid
-        this.cube.getGridByIdx(sideIdx) @=> ChordleGrid grid;
 
         while (true) {
             // Do audio stuff here
@@ -944,7 +975,7 @@ class ChordleGame {
             }
 
             // Wait
-            this.quarterNote / this.clockDivider => now;
+            this.quarterNote / grid.beatDiv => now;
             this.env.value(0.);
 
             // Set previous values
@@ -1101,11 +1132,11 @@ class GameManager {
         // Grid size
         -1 => int N;
         -1 => int M;
-        -1 => int divider;
         string colSize;
 
         while (true) {
             this.kp.getKeyPress() @=> Key keys[];
+            this.kp.getKeyHeld() @=> Key heldKeys[];
             for (Key key : keys) {
                 if (Type.of(key).name() == kp.NUMBER_KEY) {
                     if (N < 0) {
@@ -1115,19 +1146,16 @@ class GameManager {
                         key.num => M;
                         key.key => colSize;
                         this.matrixUI.updateCol(key.key);
-                    } else if (divider < 0) {
-                        key.num => divider;
-                        this.matrixUI.updateDivider(key.key);
                     }
                 } else if (Type.of(key).name() == kp.SPECIAL_KEY) {
-                    // Row and Col and Divider are set
-                    if (key.key == this.kp.SPACE && N > 0 && M > 0 && divider > 0) {
+                    // Row and Col are set
+                    if (key.key == this.kp.SPACE && N > 0 && M > 0) {
                         // Add new game
                         this.sets[colSize] @=> WordSet set;
                         ChordleGame game(set, this.beat, N, M);
                         game.setActive(0);
                         game.setCubePos(5.5 * this.numCols, 0.);  // TODO: update where grid is set
-                        game.setTempo(120., divider);
+                        game.setTempo(120.);
                         game.initAudio(this.buffers);
                         this.screen.addToScreen(game.cube);
 
@@ -1146,8 +1174,22 @@ class GameManager {
                         // Reset
                         -1 => N;
                         -1 => M;
-                        -1 => divider;
                         this.matrixUI.reset();
+                    }
+                }
+            }
+
+            for (Key key : heldKeys) {
+                if (Type.of(key).name() == kp.SPECIAL_KEY) {
+                    if (key.key == this.kp.SHIFT_BACKSPACE) {
+                        if (M > 0){
+                            -1 => M;
+                            this.matrixUI.updateCol(".");
+                        }
+                        else if (N > 0) {
+                            -1 => N;
+                            this.matrixUI.updateRow(".");
+                        }
                     }
                 }
             }
