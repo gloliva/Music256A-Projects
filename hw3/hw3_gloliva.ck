@@ -46,9 +46,9 @@
 */
 
 // Imports
-@import "hw3_bloom.ck"
+@import "hw3_bloom.ck"     // Bloom Handling
 @import "hw3_files.ck"     // File and Word Handling
-@import "hw3_keyboard.ck"  // Keyboard Inputs
+@import "hw3_keyboard.ck"  // Keyboard Input Handling
 @import "hw3_ui.ck"        // UI Handling
 
 
