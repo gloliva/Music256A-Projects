@@ -22,6 +22,19 @@
         - step algorithms changes?
     - Frequency of letters
 
+    IDEA 1
+    Different Sides are Divisions of the Beat
+    - Side one would be quarter
+    - Side two is eighth note
+    - Side three 16th etc
+
+    IDEA 2
+    Different sides are different samples
+    - they all play at the same time
+
+    IDEA 3
+    After beating the game, it rotates around each after each completion
+
     Step Algorithms:
         * Bucket of algorithms for how to step through the sequence
         * When a game is beaten, calculate the edit distance of each line
@@ -33,6 +46,7 @@
 */
 
 // Imports
+@import "hw3_bloom.ck"
 @import "hw3_files.ck"     // File and Word Handling
 @import "hw3_keyboard.ck"  // Keyboard Inputs
 @import "hw3_ui.ck"        // UI Handling
@@ -400,6 +414,13 @@ class ChordleGrid extends GGen {
             lb.setPermanentColor(Color.GREEN, 1.);
         } else if (mode == BlockMode.LETTER_MATCH) {
             lb.setPermanentColor(Color.YELLOW, 2.);
+        }
+    }
+
+    fun void setCompleteRow(int row) {
+        for (int col; col < this.numCols; col++) {
+            this.grid[row][col] @=> LetterBox lb;
+            lb.setPermanentColor(@(1.5, 0.84, 0.), 10.);
         }
     }
 
@@ -1196,6 +1217,11 @@ fun void initList(int arr[], int init) {
 // MAIN PROGRAM //
 // ************ //
 fun void main() {
+    // Bloom handling
+    Bloom bloom(9, 0.75);
+    bloom.radius(1.0);
+    bloom.levels(4);
+
     // Read in all words
     FileReader fr;
     fr.parseFile("words/4letters.txt") @=> WordSet letterSet4;
@@ -1234,37 +1260,6 @@ fun void main() {
         UI.end();
     }
 }
-
-
-fun void testCube() {
-    ChordleCube cube(5, 5);
-    cube --> GG.scene();
-
-    repeat(120) {
-        GG.nextFrame() => now;
-    }
-
-    cube.rotateRight();
-
-    repeat(120) {
-        GG.nextFrame() => now;
-    }
-
-    cube.rotateRight();
-
-    repeat(120) {
-        GG.nextFrame() => now;
-    }
-
-    cube.rotateLeft();
-
-    while (true) {
-        // GG.dt() => cube.rotateY;
-        GG.nextFrame() => now;
-    }
-}
-
-// spork ~ testCube();
 
 
 // Run
