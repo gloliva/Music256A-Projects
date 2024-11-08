@@ -30,8 +30,6 @@
     When a game is beaten, it
         - "blows up" (i.e. blocks fly from it)
         - maybe turns gold?? or maybe current step turns from red -> gold
-
-
 */
 
 // Imports
@@ -252,8 +250,12 @@ class LetterBox extends GGen {
         this.getPanel(panelPos) --< this;
     }
 
+    fun void showPanel(string panelPos) {
+        this.getPanel(panelPos) --> this;
+    }
+
     fun void hideNonActivePanels() {
-        for (int idx; idx < 6; idx++) {
+        for (int idx; idx < this.panels.size(); idx++) {
             if (idx != this.activePanelIdx) {
                 this.panels[idx] --< this;
             }
@@ -261,16 +263,11 @@ class LetterBox extends GGen {
     }
 
     fun void showNonActivePanels() {
-        for (int idx; idx < 6; idx++) {
+        for (int idx; idx < this.panels.size(); idx++) {
             if (idx != this.activePanelIdx) {
-                <<< "IDX", idx >>>;
                 this.panels[idx] --> this;
             }
         }
-    }
-
-    fun void showPanel(string panelPos) {
-        this.getPanel(panelPos) --> this;
     }
 
     fun void setPos(float x, float y) {
@@ -406,7 +403,17 @@ class ChordleGrid extends GGen {
         }
     }
 
-    fun void hideEdges() {
+    fun hideEdges() {
+        for (int row; row < this.numRows; row++) {
+            this.grid[row][0] @=> LetterBox lbStart;
+            this.grid[row][this.numCols - 1] @=> LetterBox lbEnd;
+
+            lbStart.hidePanel("left");
+            lbEnd.hidePanel("right");
+        }
+    }
+
+    fun void hideNonActiveBlocks() {
         for (int row; row < this.numRows; row++) {
             this.grid[row][0] @=> LetterBox lbStart;
             this.grid[row][this.numCols - 1] @=> LetterBox lbEnd;
@@ -414,12 +421,24 @@ class ChordleGrid extends GGen {
             // Hide border
             lbStart.hideBorder();
             lbEnd.hideBorder();
+
+            // Hide all panels that don't show letters
             lbStart.hideNonActivePanels();
             lbEnd.hideNonActivePanels();
         }
     }
 
-    fun void showEdges() {
+    fun showEdges() {
+        for (int row; row < this.numRows; row++) {
+            this.grid[row][0] @=> LetterBox lbStart;
+            this.grid[row][this.numCols - 1] @=> LetterBox lbEnd;
+
+            lbStart.showPanel("left");
+            lbEnd.showPanel("right");
+        }
+    }
+
+    fun void showNonActiveBlocks() {
         for (int row; row < this.numRows; row++) {
             this.grid[row][0] @=> LetterBox lbStart;
             this.grid[row][this.numCols - 1] @=> LetterBox lbEnd;
@@ -427,6 +446,8 @@ class ChordleGrid extends GGen {
             // Show border
             lbStart.showBorder();
             lbEnd.showBorder();
+
+            // Show all panels
             lbStart.showNonActivePanels();
             lbEnd.showNonActivePanels();
         }
@@ -485,8 +506,8 @@ class ChordleCube extends GGen {
         numCols / 2. => float shift;
         -shift => this.posZ;
         this.initSides(shift);
-        this.hideEdges("left");
-        this.hideEdges("right");
+        this.hideNonActiveBlocks("left");
+        this.hideNonActiveBlocks("right");
 
         // Set active grid
         this.sides[this.sidesMapping["front"]] @=> this.activeGrid;
@@ -534,10 +555,37 @@ class ChordleCube extends GGen {
         grid.hideEdges();
     }
 
+    fun void hideNonActiveBlocks(string side) {
+        this.sidesMapping[side] => int sideIdx;
+        this.sides[sideIdx] @=> ChordleGrid grid;
+        grid.hideNonActiveBlocks();
+    }
+
     fun void showEdges(string side) {
         this.sidesMapping[side] => int sideIdx;
         this.sides[sideIdx] @=> ChordleGrid grid;
         grid.showEdges();
+    }
+
+    fun void showNonActiveBlocks(string side) {
+        this.sidesMapping[side] => int sideIdx;
+        this.sides[sideIdx] @=> ChordleGrid grid;
+        grid.showNonActiveBlocks();
+    }
+
+    fun updateVisualsOnRotation() {
+        // Hide all panels except the front (the letter panel)
+        // on the left and right grids
+        this.showEdges("front");
+        this.showEdges("back");
+        this.hideNonActiveBlocks("front");
+        this.hideNonActiveBlocks("back");
+
+        // Show all panels (except edges) on the front and back grids
+        this.showNonActiveBlocks("left");
+        this.showNonActiveBlocks("right");
+        this.hideEdges("left");
+        this.hideEdges("right");
     }
 
     fun void rotateRight() {
@@ -553,10 +601,7 @@ class ChordleCube extends GGen {
         }
 
         // Update Panels and Borders
-        this.hideEdges("front");
-        this.hideEdges("back");
-        this.showEdges("left");
-        this.showEdges("right");
+        this.updateVisualsOnRotation();
 
         // Update side mapping
         this.sidesMapping["front"] => int currFront;
@@ -586,10 +631,8 @@ class ChordleCube extends GGen {
         }
 
         // Update Panels and Borders
-        this.hideEdges("front");
-        this.hideEdges("back");
-        this.showEdges("left");
-        this.showEdges("right");
+        this.updateVisualsOnRotation();
+
 
         // Update side mapping
         this.sidesMapping["front"] => int currFront;
