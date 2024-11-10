@@ -777,6 +777,7 @@ class ChordleGame {
     WordSet wordSet;
     string gameWord;
     string rowLetters[4][0];
+    WordEvent @ wordEvent;
 
     // KeyPoller
     KeyPoller kp;
@@ -804,9 +805,10 @@ class ChordleGame {
     Gain gain;
     Envelope env;
 
-    fun @construct(WordSet wordSet, Event beat, int numRows, int numCols) {
+    fun @construct(WordSet wordSet, Event beat, WordEvent wordEvent, int numRows, int numCols) {
         wordSet @=> this.wordSet;
         beat @=> this.beat;
+        wordEvent @=> this.wordEvent;
         numRows => this.numRows;
         numCols => this.numCols;
 
@@ -920,6 +922,16 @@ class ChordleGame {
         }
     }
 
+    fun void signalWord() {
+        "" => string word;
+        for (string char : this.rowLetters[this.activeGridIdx]) {
+            word + char => word;
+        }
+
+        word => this.wordEvent.word;
+        this.wordEvent.signal();
+    }
+
     fun void play() {
         while (true) {
             // If this game is the active game
@@ -938,6 +950,7 @@ class ChordleGame {
                             } else if (key.key == kp.ENTER && currPlayerCol[this.activeGridIdx] == numCols) {
                                 // Check current row and move to next
                                 this.checkRow();
+                                this.signalWord();
                                 this.rowLetters[this.activeGridIdx].reset();
                                 currPlayerRow[this.activeGridIdx]++;
                                 0 => currPlayerCol[this.activeGridIdx];
@@ -1073,7 +1086,10 @@ class GameManager {
     SndBuf buffers[];
 
     // Transport Event
-    Event beat;
+    Event @ beat;
+
+    // Word Event
+    WordEvent @ wordEvent;
 
     // Screen management
     GameScreen @ screen;
@@ -1082,10 +1098,11 @@ class GameManager {
     GameMatrixUI matrixUI;
     ChordleUI title;
 
-    fun @construct(WordSet sets[], SndBuf buffers[], Event beat, GameScreen screen ) {
+    fun @construct(WordSet sets[], SndBuf buffers[], Event beat, WordEvent wordEvent, GameScreen screen ) {
         sets @=> this.sets;
         buffers @=> this.buffers;
         beat @=> this.beat;
+        wordEvent @=> this.wordEvent;
         screen @=> this.screen;
 
         this.matrixUI.setPos(mainCam, WINDOW_SIZE);
@@ -1218,7 +1235,7 @@ class GameManager {
                     if (key.key == this.kp.SPACE && N > 0 && M > 0) {
                         // Add new game
                         this.sets[colSize] @=> WordSet set;
-                        ChordleGame game(set, this.beat, N, M);
+                        ChordleGame game(set, this.beat, this.wordEvent, N, M);
                         game.setActive(0);
                         game.setCubePos(5.5 * this.numCols, 0.);  // TODO: update where grid is set
                         game.setTempo(120.);
@@ -1282,9 +1299,9 @@ class GameScreen extends GGen {
 }
 
 
-// ************** //
-// AUDIO HANDLING //
-// ************** //
+// **************** //
+// HELPER FUNCTIONS //
+// **************** //
 fun void loadBuffers(SndBuf buffers[], WordSet set) {
     set.getWords() @=> string words[];
     for (string word : words) {
@@ -1326,10 +1343,8 @@ fun void main() {
     loadBuffers(buffers, letterSet5);
 
     // Global Transport
-    Transport audioTransport(120.);
-    spork ~ audioTransport.signalBeat();
-    Transport backgroundTransport(120.);
-    spork ~ backgroundTransport.signalBeat();
+    Transport transport(120.);
+    spork ~ transport.signalBeat();
 
     // Word Event
     WordEvent wordEvent;
@@ -1338,13 +1353,12 @@ fun void main() {
     GameScreen screen();
 
     // Background
-    BackgroundManager background(backgroundTransport.beat, wordEvent);
-    spork ~ background.counter();
+    BackgroundManager background(wordEvent);
     spork ~ background.addLetters();
     spork ~ background.spawnBackgroundLetters();
 
     // Game manager
-    GameManager gameManager(sets, buffers, audioTransport.beat, screen);
+    GameManager gameManager(sets, buffers, transport.beat, wordEvent, screen);
     spork ~ gameManager.manageGames();
     spork ~ gameManager.selectActiveGame();
     spork ~ gameManager.monitorCompleteGames();

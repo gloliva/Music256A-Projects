@@ -42,8 +42,8 @@ public class BackgroundLetter extends GGen {
 
     fun @construct(string letter) {
         // Color
-        Math.random2(0, colors.size()) => int colorIdx;
-        colors[colorIdx] * 6. => this.panelColor;
+        Math.random2(0, colors.size() - 1) => int colorIdx;
+        colors[colorIdx] * 10. => this.panelColor;
         Color.BLACK => this.letterColor;
 
         // Panel Handling
@@ -190,13 +190,9 @@ public class BackgroundManager {
     string letters[0];
     int size;
 
-    Event @ beat;
     WordEvent @ wordEvent;
-    int spawnCount;
-    int globalCount;
 
-    fun @construct(Event beat, WordEvent wordEvent) {
-        beat @=> this.beat;
+    fun @construct(WordEvent wordEvent) {
         wordEvent @=> this.wordEvent;
         0 => this.size;
     }
@@ -214,39 +210,24 @@ public class BackgroundManager {
         }
     }
 
-    fun void counter() {
-        while (true) {
-            this.beat => now;
-            this.globalCount++;
-            <<< this.globalCount >>>;
-        }
-    }
-
     fun void spawnBackgroundLetters() {
         // Wait until letters get added
         while (size < 1) {
-            GG.nextFrame() => now;
+            1::second => now;
         }
 
         // Periodically spawn background letters
         // Spawn rate increases as size increases
-        int spawnDiff;
         while (true) {
-            Std.scalef(this.size, 1., 100., 5., 4.)$int => spawnDiff;
-            while (this.globalCount - spawnDiff > this.spawnCount) {
-                GG.nextFrame() => now;
-            }
+            Std.scalef(this.size, 1., 100., 60., 4.)$int => int seconds;
+            seconds::second => now;
 
             // Instantiate new BackgroundLetter;
             this.letters[Math.random2(0, this.size - 1)] => string letter;
             BackgroundLetter bl(letter);
-            bl.setPos(Math.random2(-10, 10), 8, -12);
+            bl.setPos(Math.random2f(-15.5, 15.5), 10., -14.);
             spork ~ bl.rotate();
             spork ~ bl.move();
-
-            // Update spawn count
-            this.globalCount => this.spawnCount;
-            GG.nextFrame() => now;
         }
     }
 }
