@@ -40,6 +40,13 @@
     - When you beat the game, a melody is created ontop of the cube
     - Maybe it is based on the letters that you chose to get to the word
 
+    IDEA 5
+    - The more games you beat, the more "coloreful circles" (with bloom) fly around
+      in the background. i.e. it gets more colorful
+
+    IDEA 6
+    - Flash the words you've used on screen in the background on beat
+
     Step Algorithms:
         * Bucket of algorithms for how to step through the sequence
         * When a game is beaten, calculate the edit distance of each line
@@ -51,10 +58,12 @@
 */
 
 // Imports
-@import "hw3_bloom.ck"     // Bloom Handling
-@import "hw3_files.ck"     // File and Word Handling
-@import "hw3_keyboard.ck"  // Keyboard Input Handling
-@import "hw3_ui.ck"        // UI Handling
+@import "hw3_background.ck" // Background Handling
+@import "hw3_bloom.ck"      // Bloom Handling
+@import "hw3_events.ck"     // Event Handling
+@import "hw3_files.ck"      // File and Word Handling
+@import "hw3_keyboard.ck"   // Keyboard Input Handling
+@import "hw3_ui.ck"         // UI Handling
 
 
 // Window Setup
@@ -124,13 +133,13 @@ class LetterBox extends GGen {
         // Init letters
         // Letter prior to rotation
         "." => letterPre.text;
-        @(10., 10., 10.) => letterColor;
+        @(6., 6., 6.) => letterColor;
         @(letterColor.x, letterColor.y, letterColor.z, 0.) => letterPre.color;
         0.01 => letterPre.posZ;
 
         // Letter post rotation
         "." => letterPost.text;
-        @(10., 10., 10.) => letterColor;
+        @(6., 6., 6.) => letterColor;
         @(letterColor.x, letterColor.y, letterColor.z, 0.) => letterPost.color;
         0.01 => letterPost.posZ;
 
@@ -638,6 +647,30 @@ class ChordleCube extends GGen {
         this.hideEdges("right");
     }
 
+    fun void lookAtRight() {
+        if (this.yCurrRotation == 0.) {
+            this.lookAt(@(this.posX(), this.posY(), -100.));
+        } else if ( this.yCurrRotation == Math.PI / 2) {
+            this.lookAt(@(-100., this.posY(), this.posZ()));
+        } else if (this.yCurrRotation == Math.PI) {
+            this.lookAt(@(this.posX(), this.posY(), 100.));
+        } else {
+            this.lookAt(@(100., this.posY(), this.posZ()));
+        }
+    }
+
+    fun void lookAtLeft() {
+        if (this.yCurrRotation == 0.) {
+            this.lookAt(@(this.posX(), this.posY(), 100.));
+        } else if ( this.yCurrRotation == Math.PI / 2) {
+            this.lookAt(@(100., this.posY(), this.posZ()));
+        } else if (this.yCurrRotation == Math.PI) {
+            this.lookAt(@(this.posX(), this.posY(), -100.));
+        } else {
+            this.lookAt(@(-100., this.posY(), this.posZ()));
+        }
+    }
+
     fun void rotateRight() {
         Math.PI / 2 => float endRotY;
         this.posY() => float startRotY;
@@ -653,6 +686,7 @@ class ChordleCube extends GGen {
         // Adjust Y rotation to be exact position
         this.yCurrRotation + endRotY => this.yCurrRotation;
         this.yCurrRotation % (2 * Math.PI) => this.yCurrRotation;
+        // this.lookAtRight();
 
         // Update Panels and Borders
         this.updateVisualsOnRotation();
@@ -683,6 +717,11 @@ class ChordleCube extends GGen {
             -rotDelta => this.rotateY;
             GG.nextFrame() => now;
         }
+
+        // Adjust Y rotation to be exact position
+        this.yCurrRotation - endRotY => this.yCurrRotation;
+        this.yCurrRotation % (Math.PI) => this.yCurrRotation;
+        // this.lookAtLeft();
 
         // Update Panels and Borders
         this.updateVisualsOnRotation();
@@ -745,6 +784,7 @@ class ChordleGame {
     // Game status
     int active;
     int complete[4];
+    int numGamesComplete;
 
     // Timing variables
     float tempo;
@@ -875,6 +915,9 @@ class ChordleGame {
         }
 
         this.checkGameComplete(matches) => this.complete[this.activeGridIdx];
+        if ( this.complete[this.activeGridIdx] ) {
+            this.numGamesComplete++;
+        }
     }
 
     fun void play() {
@@ -910,6 +953,7 @@ class ChordleGame {
                             currPlayerCol[this.activeGridIdx]++;
                         }
                     }
+                // Side is complete, still allow for rotations
                 } else {
                     for (Key key : keys) {
                         if (Type.of(key).name() == kp.SPECIAL_KEY) {
@@ -1014,6 +1058,7 @@ class GameManager {
     int numCols;
     int activeRow;
     int activeCol;
+    int numGamesComplete;
 
     // KeyPoller
     KeyPoller kp;
@@ -1037,7 +1082,7 @@ class GameManager {
     GameMatrixUI matrixUI;
     ChordleUI title;
 
-    fun @construct(WordSet sets[], SndBuf buffers[], Event beat, GameScreen screen) {
+    fun @construct(WordSet sets[], SndBuf buffers[], Event beat, GameScreen screen ) {
         sets @=> this.sets;
         buffers @=> this.buffers;
         beat @=> this.beat;
@@ -1135,7 +1180,21 @@ class GameManager {
         }
     }
 
-    fun manageGames() {
+    fun void monitorCompleteGames() {
+        while (true) {
+            0 => int completedGames;
+            for (ChordleGame rows[] : this.games) {
+                for (ChordleGame game : rows) {
+                    game.numGamesComplete + completedGames => completedGames;
+                }
+            }
+
+            completedGames => this.numGamesComplete;
+            GG.nextFrame() => now;
+        }
+    }
+
+    fun void manageGames() {
         // Grid size
         -1 => int N;
         -1 => int M;
@@ -1189,11 +1248,11 @@ class GameManager {
             for (Key key : heldKeys) {
                 if (Type.of(key).name() == kp.SPECIAL_KEY) {
                     if (key.key == this.kp.SHIFT_BACKSPACE) {
-                        if (M > 0){
+                        if (M > -1) {
                             -1 => M;
                             this.matrixUI.updateCol(".");
                         }
-                        else if (N > 0) {
+                        else if (N > -1) {
                             -1 => N;
                             this.matrixUI.updateRow(".");
                         }
@@ -1235,26 +1294,6 @@ fun void loadBuffers(SndBuf buffers[], WordSet set) {
 }
 
 
-class Transport {
-    // Timing variables
-    float tempo;
-    dur quarterNote;
-    Event beat;
-
-    fun @construct(float tempo) {
-        tempo => this.tempo;
-        (60. / tempo)::second => this.quarterNote;
-    }
-
-    fun void signalBeat() {
-        while (true) {
-            this.beat.signal();
-            this.quarterNote * 4 => now;
-        }
-    }
-}
-
-
 fun void initList(int arr[], int init) {
     for (int idx; idx < arr.size(); idx++) {
         init => arr[idx];
@@ -1267,7 +1306,7 @@ fun void initList(int arr[], int init) {
 // ************ //
 fun void main() {
     // Bloom handling
-    Bloom bloom(9, 0.75);
+    Bloom bloom(5, 0.75);
     bloom.radius(1.0);
     bloom.levels(4);
 
@@ -1287,16 +1326,28 @@ fun void main() {
     loadBuffers(buffers, letterSet5);
 
     // Global Transport
-    Transport transport(120.);
-    spork ~ transport.signalBeat();
+    Transport audioTransport(120.);
+    spork ~ audioTransport.signalBeat();
+    Transport backgroundTransport(120.);
+    spork ~ backgroundTransport.signalBeat();
+
+    // Word Event
+    WordEvent wordEvent;
 
     // Screen management
     GameScreen screen();
 
+    // Background
+    BackgroundManager background(backgroundTransport.beat, wordEvent);
+    spork ~ background.counter();
+    spork ~ background.addLetters();
+    spork ~ background.spawnBackgroundLetters();
+
     // Game manager
-    GameManager gameManager(sets, buffers, transport.beat, screen);
+    GameManager gameManager(sets, buffers, audioTransport.beat, screen);
     spork ~ gameManager.manageGames();
     spork ~ gameManager.selectActiveGame();
+    spork ~ gameManager.monitorCompleteGames();
     spork ~ gameManager.monitorScreenActions();
 
     while (true) {
