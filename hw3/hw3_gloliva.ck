@@ -1068,16 +1068,21 @@ class GameManager {
     // Game state variables
     int numGames;
     int numRows;
-    int numCols;
+    int numCols[5];
+    int maxCols;
     int activeRow;
     int activeCol;
     int numGamesComplete;
+
+    // New game location
+    int rowPointer;
+    int colPointer;
 
     // KeyPoller
     KeyPoller kp;
 
     // Game references
-    ChordleGame games[5][10];
+    ChordleGame games[5][4];
 
     // Word references
     WordSet sets[];
@@ -1110,10 +1115,13 @@ class GameManager {
 
         // Default values
         0 => this.numGames;
-        0 => this.numRows;
-        0 => this.numCols;
+        1 => this.numRows;
+        4 => this.maxCols;
         0 => this.activeRow;
         0 => this.activeCol;
+
+        0 => this.rowPointer;
+        0 => this.colPointer;
     }
 
     fun selectActiveGame() {
@@ -1136,13 +1144,15 @@ class GameManager {
                     if (key.key == this.kp.UP_ARROW) {
                         this.activeRow - 1 => newActiveRow;
                         if (newActiveRow == -1) this.numRows - 1 => newActiveRow;
+                        if (this.activeCol >= this.numCols[newActiveRow]) this.numCols[newActiveRow] - 1 => newActiveCol;
                     } else if (key.key == this.kp.DOWN_ARROW) {
                         (this.activeRow + 1) % this.numRows => newActiveRow;
+                        if (this.activeCol >= this.numCols[newActiveRow]) this.numCols[newActiveRow] - 1 => newActiveCol;
                     } else if (key.key == this.kp.LEFT_ARROW) {
                         this.activeCol - 1 => newActiveCol;
-                        if (newActiveCol == -1) this.numCols - 1 => newActiveCol;
+                        if (newActiveCol == -1) this.numCols[this.activeRow] - 1 => newActiveCol;
                     } else if (key.key == this.kp.RIGHT_ARROW) {
-                        (this.activeCol + 1) % this.numCols => newActiveCol;
+                        (this.activeCol + 1) % this.numCols[this.activeRow] => newActiveCol;
                     }
                 }
             }
@@ -1237,7 +1247,7 @@ class GameManager {
                         this.sets[colSize] @=> WordSet set;
                         ChordleGame game(set, this.beat, this.wordEvent, N, M);
                         game.setActive(0);
-                        game.setCubePos(5.5 * this.numCols, 0.);  // TODO: update where grid is set
+                        game.setCubePos(5.5 * this.colPointer, -5.5 * this.rowPointer);  // TODO: update where grid is set
                         game.setTempo(120.);
                         game.initAudio(this.buffers);
                         this.screen.addToScreen(game.cube);
@@ -1250,8 +1260,18 @@ class GameManager {
                         }
 
                         // Add game to GameManager
-                        game @=> this.games[0][this.numCols];
-                        this.numCols + 1 => this.numCols;
+                        game @=> this.games[this.rowPointer][this.colPointer];
+                        this.numCols[this.rowPointer] + 1 => this.numCols[this.rowPointer];
+
+                        if (this.colPointer < this.maxCols - 1) {
+                            this.colPointer++;
+                        } else {
+                            this.rowPointer++;
+                            this.numRows++;
+                            0 => this.colPointer;
+                            this.games.size() + 1 => this.games.size;
+                        }
+
                         this.numGames++;
 
                         // Reset
