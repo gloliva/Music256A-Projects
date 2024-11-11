@@ -111,6 +111,9 @@ class LetterBox extends GGen {
     float width;
     float depth;
 
+    // Scaling
+    // int inflate;
+
     // Panels
     int activePanelIdx;
     int panelMapping[0];
@@ -322,6 +325,32 @@ class LetterBox extends GGen {
         @(letterColor.x, letterColor.y, letterColor.z, 0.) => letterPre.color;
     }
 
+    fun void resetScale() {
+        @(1., 1., 1.) => this.sca;
+    }
+
+    fun void inflate() {
+        1.1 => float endSca;
+        while (this.scaX() < endSca) {
+            this.scaX() * GG.dt() => float dtX;
+            this.scaY() * GG.dt() => float dtY;
+            this.scaZ() * GG.dt() => float dtZ;
+            @(this.scaX() + dtX, this.scaY() + dtY, this.scaZ() + dtZ) => this.sca;
+            GG.nextFrame() => now;
+        }
+    }
+
+    fun void deflate() {
+        1.0 => float endSca;
+        while (this.scaX() > endSca) {
+            this.scaX() * GG.dt() => float dtX;
+            this.scaY() * GG.dt() => float dtY;
+            this.scaZ() * GG.dt() => float dtZ;
+            @(this.scaX() - dtX, this.scaY() - dtY, this.scaZ() - dtZ) => this.sca;
+            GG.nextFrame() => now;
+        }
+    }
+
     fun void setTempColor(vec3 color, float intensity) {
         color * intensity => this.activePanel.color;
     }
@@ -499,6 +528,14 @@ class ChordleGrid extends GGen {
             // Show all panels
             lbStart.showNonActivePanels();
             lbEnd.showNonActivePanels();
+        }
+    }
+
+    fun void resetScale() {
+        for (int row; row < this.numRows; row++) {
+            for (int col; col < this.numCols; col++) {
+                this.grid[row][col].resetScale();
+            }
         }
     }
 
@@ -1002,10 +1039,20 @@ class ChordleGame {
             if (this.prevSeqRow[sideIdx] >= 0 && this.prevSeqCol[sideIdx] >= 0) {
                 grid.getColor(this.prevSeqRow[sideIdx], this.prevSeqCol[sideIdx]) => vec3 color;
                 grid.setColor(this.prevSeqRow[sideIdx], this.prevSeqCol[sideIdx], color, 1., 0);
+                if (sideIdx == this.activeGridIdx) {
+                    spork ~ grid.grid[this.prevSeqRow[sideIdx]][this.prevSeqCol[sideIdx]].deflate();
+                } else {
+                    grid.grid[this.prevSeqRow[sideIdx]][this.prevSeqCol[sideIdx]].resetScale();
+                }
             }
 
             // Set current block's color
             grid.setColor(this.currSeqRow[sideIdx], this.currSeqCol[sideIdx], Color.RED, 1.5, 0);
+            if (sideIdx == this.activeGridIdx) {
+                spork ~ grid.grid[this.currSeqRow[sideIdx]][this.currSeqCol[sideIdx]].inflate();
+            } else {
+                grid.grid[this.currSeqRow[sideIdx]][this.currSeqCol[sideIdx]].resetScale();
+            }
             GG.nextFrame() => now;
         }
     }
@@ -1052,6 +1099,29 @@ class ChordleGame {
                 0 => this.currSeqCol[sideIdx];
                 (this.currSeqRow[sideIdx] + 1) % this.currPlayerRow[sideIdx] => this.currSeqRow[sideIdx];
             }
+        }
+    }
+
+    fun void moveWhileActive() {
+        Math.PI / 64 => float leftEdge;
+        -Math.PI / 64 => float rightEdge;
+        Math.PI / 16 => float moveAmount;
+        1 => int direction;
+
+        while (true) {
+            if ( this.active ) {
+                direction * moveAmount * GG.dt() => this.cube.rotateZ;
+                if (direction == 1 && this.cube.rotZ() < rightEdge) {
+                    -1 => direction;
+                } else if (direction == -1 && this.cube.rotZ() > leftEdge) {
+                    1 => direction;
+                }
+            } else {
+                0. => this.cube.rotZ;
+            }
+
+            <<< "Curr Rot", this.cube.rotZ(), "Direction", direction, "Left Edge", leftEdge, "Right Edge", rightEdge >>>;
+            GG.nextFrame() => now;
         }
     }
 
@@ -1254,6 +1324,7 @@ class GameManager {
 
                         // Start new game
                         spork ~ game.play();
+                        // spork ~ game.moveWhileActive();
                         for(int idx; idx < 4; idx++) {
                             spork ~ game.sequenceAudio(idx);
                             spork ~ game.sequenceVisuals(idx);

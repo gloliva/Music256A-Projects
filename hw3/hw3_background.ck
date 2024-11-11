@@ -28,6 +28,7 @@ public class BackgroundLetter extends GGen {
     vec3 panelColor;
 
     // State Variables
+    Event @ wait;
     int active;
     float endY;
 
@@ -40,7 +41,10 @@ public class BackgroundLetter extends GGen {
     int zDir;
     float moveSpeed;
 
-    fun @construct(string letter) {
+    fun @construct(string letter, Event wait) {
+        // Events
+        wait @=> this.wait;
+
         // Color
         Math.random2(0, colors.size() - 1) => int colorIdx;
         colors[colorIdx] * 10. => this.panelColor;
@@ -181,6 +185,7 @@ public class BackgroundLetter extends GGen {
         }
 
         0 => this.active;
+        this.wait.signal();
         this --< GG.scene();
     }
 }
@@ -220,14 +225,23 @@ public class BackgroundManager {
         // Spawn rate increases as size increases
         while (true) {
             Std.scalef(this.size, 1., 100., 60., 4.)$int => int seconds;
-            seconds::second => now;
+            spork ~ this.spawnBackgroundLetter(seconds::second);
+            5::second => now;
+        }
+    }
+
+    fun void spawnBackgroundLetter(dur spawnTime) {
+            spawnTime => now;
+            Event wait;
 
             // Instantiate new BackgroundLetter;
             this.letters[Math.random2(0, this.size - 1)] => string letter;
-            BackgroundLetter bl(letter);
+            BackgroundLetter bl(letter, wait);
             bl.setPos(Math.random2f(-15.5, 15.5), 10., -14.);
             spork ~ bl.rotate();
             spork ~ bl.move();
-        }
+
+            // Wait until background letter expires
+            wait => now;
     }
 }
