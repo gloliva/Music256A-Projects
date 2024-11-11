@@ -831,6 +831,11 @@ class ChordleGame {
     dur quarterNote;
     Event beat;
 
+    // Melody
+    Event melody;
+    FMInstrument @ instrument;
+    Scale @ scale;
+
     // Sequencer position handling
     int startVisuals[4];
     int prevSeqRow[4];
@@ -844,10 +849,12 @@ class ChordleGame {
     Gain gain;
     Envelope env;
 
-    fun @construct(WordSet wordSet, Event beat, WordEvent wordEvent, int numRows, int numCols) {
+    fun @construct(WordSet wordSet, Event beat, WordEvent wordEvent, FMInstrument instrument, Scale scale, int numRows, int numCols) {
         wordSet @=> this.wordSet;
         beat @=> this.beat;
         wordEvent @=> this.wordEvent;
+        instrument @=> this.instrument;
+        scale @=> this.scale;
         numRows => this.numRows;
         numCols => this.numCols;
 
@@ -1087,6 +1094,9 @@ class ChordleGame {
                 if (chance > 0.5) spork ~ this.playAudio(0.5);
             }
 
+            // Signal melody to step
+            this.melody.signal();
+
             // Wait
             this.quarterNote / grid.beatDiv => now;
             this.env.value(0.);
@@ -1104,25 +1114,72 @@ class ChordleGame {
         }
     }
 
+    fun void playMelody(int sideIdx) {
+        // Get grid
+        this.cube.getGridByIdx(sideIdx) @=> ChordleGrid grid;
+
+        while ( !this.complete[sideIdx] ) {
+            this.quarterNote / grid.beatDiv => now;
+        }
+
+        // Set up instrument
+        this.quarterNote / grid.beatDiv => dur beatLength;
+        50::ms => dur attack;
+        50::ms => dur release;
+        beatLength - attack - release => dur sustain;
+        this.instrument.setEnv(attack, sustain, release);
+
+        // this.generateMelody();  // TODO: DO THIS
+        [
+            new ScaleDegree(0, 0),
+            new ScaleDegree(2, 0)
+        ] @=> ScaleDegree scaleDegrees[];
+
+        0 => int currIdx;
+        scaleDegrees.size() => int melodyLength;
+        while (true) {
+            // Wait for beat step
+            this.melody => now;
+
+            if (sideIdx == this.activeGridIdx) {
+                // Get frequency from scale degree
+                scaleDegrees[currIdx] @=> ScaleDegree degree;
+                this.scale.getFreqFromDegree(degree.degree, degree.octaveDiff) => float freq;
+
+                // Play instrument
+                this.instrument.setFreq(freq);
+                spork ~ this.instrument.play();
+            }
+
+            (currIdx + 1) % melodyLength => currIdx;
+        }
+    }
+
     fun void moveWhileActive() {
-        Math.PI / 64 => float leftEdge;
-        -Math.PI / 64 => float rightEdge;
-        Math.PI / 16 => float moveAmount;
+        0.5 => float moveAmount;
+        0.05 => float scaleAmount;
         1 => int direction;
+
+        this.cube.posY() => float origY;
+        this.cube.posY() - 0.15 => float startY;
+        this.cube.posY() + 0.15 => float endY;
 
         while (true) {
             if ( this.active ) {
-                direction * moveAmount * GG.dt() => this.cube.rotateZ;
-                if (direction == 1 && this.cube.rotZ() < rightEdge) {
+                direction * moveAmount * GG.dt() => this.cube.translateY;
+                (direction * GG.dt() * scaleAmount) => float dtSca;
+                @(this.cube.scaX() + dtSca, this.cube.scaY() + dtSca, this.cube.scaZ() + dtSca) => this.cube.sca;
+
+                if (this.cube.posY() > endY && direction == 1) {
                     -1 => direction;
-                } else if (direction == -1 && this.cube.rotZ() > leftEdge) {
+                } else if (this.cube.posY() < startY && direction == -1) {
                     1 => direction;
                 }
             } else {
-                0. => this.cube.rotZ;
+                origY => this.cube.posY;
+                @(1., 1., 1.) => this.cube.sca;
             }
 
-            <<< "Curr Rot", this.cube.rotZ(), "Direction", direction, "Left Edge", leftEdge, "Right Edge", rightEdge >>>;
             GG.nextFrame() => now;
         }
     }
@@ -1168,6 +1225,9 @@ class GameManager {
     // Word Event
     WordEvent @ wordEvent;
 
+    // Melody
+    StandardScales @ scaleManager;
+
     // Screen management
     GameScreen @ screen;
 
@@ -1175,11 +1235,12 @@ class GameManager {
     GameMatrixUI matrixUI;
     ChordleUI title;
 
-    fun @construct(WordSet sets[], SndBuf buffers[], Event beat, WordEvent wordEvent, GameScreen screen ) {
+    fun @construct(WordSet sets[], SndBuf buffers[], Event beat, WordEvent wordEvent, StandardScales scaleManager, GameScreen screen) {
         sets @=> this.sets;
         buffers @=> this.buffers;
         beat @=> this.beat;
         wordEvent @=> this.wordEvent;
+        scaleManager @=> this.scaleManager;
         screen @=> this.screen;
 
         this.matrixUI.setPos(mainCam, WINDOW_SIZE);
@@ -1293,6 +1354,10 @@ class GameManager {
         }
     }
 
+    fun FM newInstrument() {
+        return new HnkyTonk();
+    }
+
     fun void manageGames() {
         // Grid size
         -1 => int N;
@@ -1317,7 +1382,8 @@ class GameManager {
                     if (key.key == this.kp.SPACE && N > 0 && M > 0) {
                         // Add new game
                         this.sets[colSize] @=> WordSet set;
-                        ChordleGame game(set, this.beat, this.wordEvent, N, M);
+                        FMInstrument instrument(this.newInstrument(), 0.4);
+                        ChordleGame game(set, this.beat, this.wordEvent, instrument, this.scaleManager.majorPentatonic, N, M);
                         game.setActive(0);
                         game.setCubePos(5.5 * this.colPointer, -5.5 * this.rowPointer);  // TODO: update where grid is set
                         game.setTempo(120.);
@@ -1326,10 +1392,11 @@ class GameManager {
 
                         // Start new game
                         spork ~ game.play();
-                        // spork ~ game.moveWhileActive();
+                        spork ~ game.moveWhileActive();
                         for(int idx; idx < 4; idx++) {
                             spork ~ game.sequenceAudio(idx);
                             spork ~ game.sequenceVisuals(idx);
+                            spork ~ game.playMelody(idx);
                         }
 
                         // Add game to GameManager
@@ -1435,6 +1502,9 @@ fun void main() {
     loadBuffers(buffers, letterSet4);
     loadBuffers(buffers, letterSet5);
 
+    // Scales
+    StandardScales scaleManager;
+
     // Global Transport
     Transport transport(120.);
     spork ~ transport.signalBeat();
@@ -1452,7 +1522,7 @@ fun void main() {
     spork ~ background.spawnBackgroundWords();
 
     // Game manager
-    GameManager gameManager(sets, buffers, transport.beat, wordEvent, screen);
+    GameManager gameManager(sets, buffers, transport.beat, wordEvent, scaleManager, screen);
     spork ~ gameManager.manageGames();
     spork ~ gameManager.selectActiveGame();
     spork ~ gameManager.monitorCompleteGames();

@@ -18,7 +18,8 @@ public class FMInstrument {
         instrument @=> this.instrument;
         initGain => this.gain.gain;
 
-        this.instrument => this.env => this.gain => dac;
+        // this.instrument => this.env => this.gain => dac;
+        this.instrument => this.gain => dac;
     }
 
     fun void setEnv(dur attack, dur sustain, dur release) {

@@ -5,7 +5,18 @@
 */
 
 
-class Scale {
+public class ScaleDegree {
+    int degree;
+    int octaveDiff;
+
+    fun @construct(int degree, int octaveDiff) {
+        degree => this.degree;
+        octaveDiff => this.octaveDiff;
+    }
+}
+
+
+public class Scale {
     int size;
     int degrees[];
     int base;
