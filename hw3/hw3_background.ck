@@ -224,14 +224,16 @@ public class BackgroundManager {
         // Periodically spawn background letters
         // Spawn rate increases as size increases
         while (true) {
-            Std.scalef(this.size, 1., 100., 60., 4.)$int => int seconds;
-            spork ~ this.spawnBackgroundLetter(seconds::second);
+            // Std.scalef(this.size, 1., 100., 60., 4.)$int => int seconds;
+            Math.random2(0, 100) => int chance;
+            if (chance < this.size) {
+                spork ~ this.spawnBackgroundLetter();
+            }
             5::second => now;
         }
     }
 
-    fun void spawnBackgroundLetter(dur spawnTime) {
-            spawnTime => now;
+    fun void spawnBackgroundLetter() {
             Event wait;
 
             // Instantiate new BackgroundLetter;
