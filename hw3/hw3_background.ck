@@ -225,12 +225,35 @@ class BackgroundWord extends GGen {
         Math.random2f(-8., 8.) => this.posY;
     }
 
-    fun fadeIn() {
+    fun fadeWord() {
+        // Fade in
+        1. => float speed;
         while (this.color < this.maxColor) {
-            this.color + GG.dt() => this.color;
+            if (this.color < 1.) {
+                0.1 => speed;
+            } else {
+                4. => speed;
+            }
+
+            this.color + (speed * GG.dt()) => this.color;
             @(this.color, this.color, this.color, 1.) => this.text.color;
             GG.nextFrame() => now;
         }
+
+        // Fade out
+        while (this.color > 0.) {
+            if (this.color < 1.) {
+                0.1 => speed;
+            } else {
+                4. => speed;
+            }
+            this.color - GG.dt() => this.color;
+            @(this.color, this.color, this.color, 1.) => this.text.color;
+            GG.nextFrame() => now;
+        }
+
+        @(0., 0., 0., 0.) => this.text.color;
+        this --< GG.scene();
 
         this.wait.signal();
     }
@@ -239,7 +262,7 @@ class BackgroundWord extends GGen {
 
 public class BackgroundManager {
     string letters[0];
-    string words[0];
+    string wordSet[0];
     int size;
     int wordSize;
 
@@ -252,11 +275,10 @@ public class BackgroundManager {
     }
 
     fun void addLetters() {
-        string currWord;
         while (true) {
             this.wordEvent => now;
-            this.wordEvent.word() => currWord;
-            this.words << currWord;
+            this.wordEvent.word() => string currWord;
+            this.wordSet << currWord;
             this.wordSize++;
             for (int charIdx; charIdx < currWord.length(); charIdx++) {
                 currWord.substring(charIdx, 1) => string letter;
@@ -274,19 +296,20 @@ public class BackgroundManager {
         while (true) {
             Math.random2(0, 30) => int chance;
             if (chance < this.wordSize) {
-                spork ~ this.spawnBackgroundWord();
+                Math.random2(0, this.wordSize - 1) => int idx;
+                this.wordSet[idx] => string word;
+                spork ~ this.spawnBackgroundWord(word);
             }
-            5::second => now;
+            2::second => now;
         }
     }
 
-    fun void spawnBackgroundWord() {
+    fun void spawnBackgroundWord(string word) {
         Event wait;
 
         // Instantiate new BackgroundWord
-        this.words[Math.random2(0, this.wordSize - 1)] => string word;
         BackgroundWord bw(word, wait);
-        spork ~ bw.fadeIn();
+        spork ~ bw.fadeWord();
 
         // Wait until word fades in
         wait => now;
@@ -305,7 +328,7 @@ public class BackgroundManager {
             if (chance < this.size) {
                 spork ~ this.spawnBackgroundLetter();
             }
-            5::second => now;
+            2::second => now;
         }
     }
 

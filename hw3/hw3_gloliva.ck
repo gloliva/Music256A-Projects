@@ -1114,6 +1114,23 @@ class ChordleGame {
         }
     }
 
+    fun void generateMelody(ScaleDegree degrees[], ChordleGrid grid, int sideIdx) {
+        for (int row; row < this.currPlayerRow[sideIdx]; row++) {
+            for (int col; col < grid.numCols; col++) {
+                grid.grid[row][col] @=> LetterBox lb;
+                lb.letterPost.text() => string letter;
+
+                letter.charAt(0) - "A".charAt(0) => int degree;
+                1 => float chance;
+                if (lb.mode() == BlockMode.LETTER_MATCH) 0.5 => chance;
+                if (lb.mode() == BlockMode.NO_MATCH) 0.25 => chance;
+                if (Math.random2f(0., 1.) > chance) -1 => degree;
+
+                degrees << new ScaleDegree(degree, 0);
+            }
+        }
+    }
+
     fun void playMelody(int sideIdx) {
         // Get grid
         this.cube.getGridByIdx(sideIdx) @=> ChordleGrid grid;
@@ -1129,21 +1146,20 @@ class ChordleGame {
         beatLength - attack - release => dur sustain;
         this.instrument.setEnv(attack, sustain, release);
 
-        // this.generateMelody();  // TODO: DO THIS
-        [
-            new ScaleDegree(0, 0),
-            new ScaleDegree(2, 0)
-        ] @=> ScaleDegree scaleDegrees[];
+        ScaleDegree scaleDegrees[0];
+        this.generateMelody(scaleDegrees, grid, sideIdx);  // TODO: DO THIS
 
-        0 => int currIdx;
+        ((this.currSeqRow[sideIdx] * this.numCols) + this.currSeqCol[sideIdx]) + 1 => int currIdx;
         scaleDegrees.size() => int melodyLength;
+        currIdx % melodyLength => currIdx;
+
         while (true) {
             // Wait for beat step
             this.melody => now;
+            scaleDegrees[currIdx] @=> ScaleDegree degree;
 
-            if (sideIdx == this.activeGridIdx) {
+            if (sideIdx == this.activeGridIdx && degree.degree != -1) {
                 // Get frequency from scale degree
-                scaleDegrees[currIdx] @=> ScaleDegree degree;
                 this.scale.getFreqFromDegree(degree.degree, degree.octaveDiff) => float freq;
 
                 // Play instrument
@@ -1382,7 +1398,7 @@ class GameManager {
                     if (key.key == this.kp.SPACE && N > 0 && M > 0) {
                         // Add new game
                         this.sets[colSize] @=> WordSet set;
-                        FMInstrument instrument(this.newInstrument(), 0.4);
+                        FMInstrument instrument(this.newInstrument(), 0.2);
                         ChordleGame game(set, this.beat, this.wordEvent, instrument, this.scaleManager.majorPentatonic, N, M);
                         game.setActive(0);
                         game.setCubePos(5.5 * this.colPointer, -5.5 * this.rowPointer);  // TODO: update where grid is set
