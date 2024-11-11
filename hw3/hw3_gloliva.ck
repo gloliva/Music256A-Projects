@@ -63,6 +63,7 @@
 @import "hw3_events.ck"     // Event Handling
 @import "hw3_files.ck"      // File and Word Handling
 @import "hw3_keyboard.ck"   // Keyboard Input Handling
+@import "hw3_scales.ck"     // Scale Handling
 @import "hw3_ui.ck"         // UI Handling
 
 
