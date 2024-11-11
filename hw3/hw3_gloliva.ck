@@ -58,13 +58,14 @@
 */
 
 // Imports
-@import "hw3_background.ck" // Background Handling
-@import "hw3_bloom.ck"      // Bloom Handling
-@import "hw3_events.ck"     // Event Handling
-@import "hw3_files.ck"      // File and Word Handling
-@import "hw3_keyboard.ck"   // Keyboard Input Handling
-@import "hw3_scales.ck"     // Scale Handling
-@import "hw3_ui.ck"         // UI Handling
+@import "hw3_background.ck" // Background Events
+@import "hw3_bloom.ck"      // Bloom
+@import "hw3_events.ck"     // Events
+@import "hw3_files.ck"      // File and Word Processing
+@import "hw3_instrument.ck" // Instrument and Audio
+@import "hw3_keyboard.ck"   // Keyboard Input
+@import "hw3_scales.ck"     // Scales
+@import "hw3_ui.ck"         // UI
 
 
 // Window Setup
