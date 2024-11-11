@@ -9,7 +9,7 @@
 @import "hw3_events.ck"  // Event Handling
 
 
-public class BackgroundLetter extends GGen {
+class BackgroundLetter extends GGen {
     // Graphics objects
     GCube border;
     GPlane panels[6];
@@ -191,15 +191,64 @@ public class BackgroundLetter extends GGen {
 }
 
 
+class BackgroundWord extends GGen {
+    GText text;
+    string word;
+    float color;
+    float maxColor;
+
+    Event @ wait;
+
+    fun @construct(string word, Event wait) {
+        word => this.word;
+        word => this.text.text;
+        wait @=> this.wait;
+
+        // Color
+        0. => this.color;
+        10. => this.maxColor;
+        @(color, color, color, 1.) => this.text.color;
+
+        // Position
+        this.setPos();
+
+        // Names
+        "Background Word " + word => this.name;
+
+        // Connections
+        this.text --> this --> GG.scene();
+    }
+
+    fun void setPos() {
+        -15. => this.posZ;
+        Math.random2f(-15., 15.) => this.posX;
+        Math.random2f(-8., 8.) => this.posY;
+    }
+
+    fun fadeIn() {
+        while (this.color < this.maxColor) {
+            this.color + GG.dt() => this.color;
+            @(this.color, this.color, this.color, 1.) => this.text.color;
+            GG.nextFrame() => now;
+        }
+
+        this.wait.signal();
+    }
+}
+
+
 public class BackgroundManager {
     string letters[0];
+    string words[0];
     int size;
+    int wordSize;
 
     WordEvent @ wordEvent;
 
     fun @construct(WordEvent wordEvent) {
         wordEvent @=> this.wordEvent;
         0 => this.size;
+        0 => this.wordSize;
     }
 
     fun void addLetters() {
@@ -207,12 +256,40 @@ public class BackgroundManager {
         while (true) {
             this.wordEvent => now;
             this.wordEvent.word() => currWord;
+            this.words << currWord;
+            this.wordSize++;
             for (int charIdx; charIdx < currWord.length(); charIdx++) {
                 currWord.substring(charIdx, 1) => string letter;
                 this.letters << letter;
                 this.size++;
             }
         }
+    }
+
+    fun void spawnBackgroundWords() {
+        while (this.wordSize < 1) {
+            1::second => now;
+        }
+
+        while (true) {
+            Math.random2(0, 30) => int chance;
+            if (chance < this.wordSize) {
+                spork ~ this.spawnBackgroundWord();
+            }
+            5::second => now;
+        }
+    }
+
+    fun void spawnBackgroundWord() {
+        Event wait;
+
+        // Instantiate new BackgroundWord
+        this.words[Math.random2(0, this.wordSize - 1)] => string word;
+        BackgroundWord bw(word, wait);
+        spork ~ bw.fadeIn();
+
+        // Wait until word fades in
+        wait => now;
     }
 
     fun void spawnBackgroundLetters() {
@@ -224,7 +301,6 @@ public class BackgroundManager {
         // Periodically spawn background letters
         // Spawn rate increases as size increases
         while (true) {
-            // Std.scalef(this.size, 1., 100., 60., 4.)$int => int seconds;
             Math.random2(0, 100) => int chance;
             if (chance < this.size) {
                 spork ~ this.spawnBackgroundLetter();

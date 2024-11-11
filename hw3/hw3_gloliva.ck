@@ -1447,6 +1447,7 @@ fun void main() {
     BackgroundManager background(wordEvent);
     spork ~ background.addLetters();
     spork ~ background.spawnBackgroundLetters();
+    spork ~ background.spawnBackgroundWords();
 
     // Game manager
     GameManager gameManager(sets, buffers, transport.beat, wordEvent, screen);
