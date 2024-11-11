@@ -32,7 +32,14 @@ public class Scale {
     }
 
     fun float getFreqFromDegree(int degree, int octaveDiff) {
-        (degree / size)$int => int octaves;
+        0 => int octaves;
+
+        if (degree < 0) {
+            size - degree => degree;
+            octaves - 1 => octaves;
+        }
+
+        (degree / size)$int => octaves;
         degree % size => degree;
 
         base + (12 * octaves) + (12 * octaveDiff) + degrees[degree] => float midiNote;

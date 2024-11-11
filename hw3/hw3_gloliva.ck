@@ -47,6 +47,9 @@
     IDEA 6
     - Flash the words you've used on screen in the background on beat
 
+    IDEA 7:
+    - PAN melodies based on their position
+
     Step Algorithms:
         * Bucket of algorithms for how to step through the sequence
         * When a game is beaten, calculate the edit distance of each line
@@ -1120,10 +1123,11 @@ class ChordleGame {
                 grid.grid[row][col] @=> LetterBox lb;
                 lb.letterPost.text() => string letter;
 
-                letter.charAt(0) - "A".charAt(0) => int degree;
+                (letter.charAt(0) - "A".charAt(0)) - (this.scale.size * 2) => int degree;
+                <<< "Letter", letter,  "Degree", degree >>>;
                 1 => float chance;
                 if (lb.mode() == BlockMode.LETTER_MATCH) 0.5 => chance;
-                if (lb.mode() == BlockMode.NO_MATCH) 0.25 => chance;
+                if (lb.mode() == BlockMode.NO_MATCH) 0.1 => chance;
                 if (Math.random2f(0., 1.) > chance) -1 => degree;
 
                 degrees << new ScaleDegree(degree, 0);
@@ -1147,7 +1151,7 @@ class ChordleGame {
         this.instrument.setEnv(attack, sustain, release);
 
         ScaleDegree scaleDegrees[0];
-        this.generateMelody(scaleDegrees, grid, sideIdx);  // TODO: DO THIS
+        this.generateMelody(scaleDegrees, grid, sideIdx);
 
         ((this.currSeqRow[sideIdx] * this.numCols) + this.currSeqCol[sideIdx]) + 1 => int currIdx;
         scaleDegrees.size() => int melodyLength;
@@ -1371,6 +1375,17 @@ class GameManager {
     }
 
     fun FM newInstrument() {
+        Math.random2(0, 3) => int choice;
+        // if (choice == 0) {
+        //     return new HnkyTonk();
+        // } else if (choice == 1) {
+        //     return new BeeThree();
+        // } else if (choice == 2) {
+        //     return new FrencHrn();
+        // } else {
+        //     return new Wurley();
+        // }
+
         return new HnkyTonk();
     }
 

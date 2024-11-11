@@ -45,6 +45,9 @@ class BackgroundLetter extends GGen {
         // Events
         wait @=> this.wait;
 
+        // Scale
+        @(1.2, 1.2, 1.2) => this.sca;
+
         // Color
         Math.random2(0, colors.size() - 1) => int colorIdx;
         colors[colorIdx] * 10. => this.panelColor;
@@ -220,9 +223,9 @@ class BackgroundWord extends GGen {
     }
 
     fun void setPos() {
-        -15. => this.posZ;
-        Math.random2f(-15., 15.) => this.posX;
-        Math.random2f(-8., 8.) => this.posY;
+        -18. => this.posZ;
+        Math.random2f(-16., 16.) => this.posX;
+        Math.random2f(-10., 10.) => this.posY;
     }
 
     fun fadeWord() {
@@ -338,7 +341,7 @@ public class BackgroundManager {
             // Instantiate new BackgroundLetter;
             this.letters[Math.random2(0, this.size - 1)] => string letter;
             BackgroundLetter bl(letter, wait);
-            bl.setPos(Math.random2f(-15.5, 15.5), 10., -14.);
+            bl.setPos(Math.random2f(-16.5, 16.5), 12., -18.);
             spork ~ bl.rotate();
             spork ~ bl.move();
 
