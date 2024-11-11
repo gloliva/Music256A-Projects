@@ -5,7 +5,7 @@
 */
 
 
-class FMInstrument {
+public class FMInstrument {
     FM @ instrument;
     Gain gain;
     Envelope env;
