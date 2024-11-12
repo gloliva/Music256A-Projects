@@ -1424,7 +1424,7 @@ class GameManager {
                     if (key.key == this.kp.SPACE && N > 0 && M > 0) {
                         // Add new game
                         this.sets[colSize] @=> WordSet set;
-                        FMInstrument instrument(this.newInstrument(), 0.2);
+                        FMInstrument instrument(this.newInstrument(), 0.1);
                         ChordleGame game(set, this.beat, this.wordEvent, instrument, this.scaleManager.majorPentatonic, N, M);
                         game.setActive(0);
                         game.setCubePos(5.5 * this.colPointer, -5.5 * this.rowPointer);  // TODO: update where grid is set
