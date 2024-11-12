@@ -34,13 +34,21 @@ public class Scale {
     fun float getFreqFromDegree(int degree, int octaveDiff) {
         0 => int octaves;
 
-        if (degree < 0) {
-            size - degree => degree;
-            octaves - 1 => octaves;
-        }
-
+        // Pretty messy and can probably be reduced
+        // but it gets the job done
         (degree / size)$int => octaves;
-        degree % size => degree;
+        if (degree < 0) {
+            size + (degree % size) => degree;
+
+            if (degree % size == 0){
+                0 => degree;
+            } else {
+                octaves - 1 => octaves;
+            }
+        } else {
+            degree % size => degree;
+            (degree / size)$int + octaves => octaves;
+        }
 
         base + (12 * octaves) + (12 * octaveDiff) + degrees[degree] => float midiNote;
         return Math.mtof(midiNote);
@@ -55,7 +63,7 @@ public class StandardScales {
     int base;
 
     fun @construct() {
-        48 => this.base;
+        58 => this.base;
 
         new Scale([0, 2, 4, 5, 7, 9, 11], this.base) @=> this.major;
         new Scale([0, 2, 5, 7, 9], this.base) @=> this.majorPentatonic;

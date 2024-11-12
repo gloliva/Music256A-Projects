@@ -1123,7 +1123,7 @@ class ChordleGame {
                 grid.grid[row][col] @=> LetterBox lb;
                 lb.letterPost.text() => string letter;
 
-                (letter.charAt(0) - "A".charAt(0)) - (this.scale.size * 2) => int degree;
+                (letter.charAt(0) - "A".charAt(0)) - ("M".charAt(0) - "A".charAt(0)) => int degree;
                 <<< "Letter", letter,  "Degree", degree >>>;
                 1 => float chance;
                 if (lb.mode() == BlockMode.LETTER_MATCH) 0.5 => chance;
