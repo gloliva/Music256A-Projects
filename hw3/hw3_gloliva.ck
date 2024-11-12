@@ -4,61 +4,6 @@
     Author: Gregg Oliva
 */
 
-/*
-    IDEAS / IMPLEMENTATION
-    - change letterboxes to have cube be border and panels be the face
-    - Modification words:
-        - SHIFT
-        - SHFT
-        - SFT
-
-        - ROTATE
-        - ROTAT
-        - ROTS
-        - ROT
-
-    - Finishing a game unlocks
-        - rotation
-        - step algorithms changes?
-    - Frequency of letters
-
-    IDEA 1
-    Different Sides are Divisions of the Beat
-    - Side one would be quarter
-    - Side two is eighth note
-    - Side three 16th etc
-
-    IDEA 2
-    Different sides are different samples
-    - they all play at the same time
-
-    IDEA 3
-    After beating the game, it rotates around each after each completion
-
-    IDEA 4:
-    - TODO: This is a good one!!!
-    - When you beat the game, a melody is created ontop of the cube
-    - Maybe it is based on the letters that you chose to get to the word
-
-    IDEA 5
-    - The more games you beat, the more "coloreful circles" (with bloom) fly around
-      in the background. i.e. it gets more colorful
-
-    IDEA 6
-    - Flash the words you've used on screen in the background on beat
-
-    IDEA 7:
-    - PAN melodies based on their position
-
-    Step Algorithms:
-        * Bucket of algorithms for how to step through the sequence
-        * When a game is beaten, calculate the edit distance of each line
-            - add these up and mod by numAlgorithms to select which algorithm
-
-    When a game is beaten, it
-        - "blows up" (i.e. blocks fly from it)
-        - maybe turns gold?? or maybe current step turns from red -> gold
-*/
 
 // Imports
 @import "hw3_background.ck" // Background Events
@@ -872,6 +817,7 @@ class ChordleGame {
 
         // Game word
         wordSet.getRandom(1) => this.gameWord;
+        // wordSet.getNext() => this.gameWord;
         <<< "Game word: ", this.gameWord >>>;
 
         // Default tempo
@@ -1532,18 +1478,24 @@ fun void main() {
 
     // Read in all words
     FileReader fr;
+    fr.parseFile("words/3letters.txt") @=> WordSet letterSet3;
     fr.parseFile("words/4letters.txt") @=> WordSet letterSet4;
     fr.parseFile("words/5letters.txt") @=> WordSet letterSet5;
+    fr.parseFile("words/6letters.txt") @=> WordSet letterSet6;
 
     // Map of word sets
     WordSet sets[0];
+    letterSet3 @=> sets["3"];
     letterSet4 @=> sets["4"];
     letterSet5 @=> sets["5"];
+    letterSet6 @=> sets["6"];
 
     // Load buffers
     SndBuf buffers[0];
+    loadBuffers(buffers, letterSet3);
     loadBuffers(buffers, letterSet4);
     loadBuffers(buffers, letterSet5);
+    loadBuffers(buffers, letterSet6);
 
     // Scales
     StandardScales scaleManager;
@@ -1573,12 +1525,6 @@ fun void main() {
 
     while (true) {
         GG.nextFrame() => now;
-        // UI
-        if (UI.begin("HW3")) {
-            // show a UI display of the current scenegraph
-            UI.scenegraph(GG.scene());
-        }
-        UI.end();
     }
 }
 
