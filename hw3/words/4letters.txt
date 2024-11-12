@@ -1,0 +1,10 @@
+beat
+clap
+bang
+ride
+bell
+twig
+ding
+pots
+tube
+wood
