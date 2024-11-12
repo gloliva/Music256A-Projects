@@ -7,11 +7,13 @@
 
 public class WordSet {
     int words[0];
+    string wordsList[0];
     int mapSize;
 
     fun void add(string word) {
         this.mapSize++;
         1 => this.words[word];
+        this.wordsList << word;
     }
 
     fun int find(string word) {
@@ -42,9 +44,22 @@ public class WordSet {
 
         if (remove) {
             this.words.erase(word);
+            this.mapSize--;
         }
 
         return word;
+    }
+
+    fun string getNext() {
+        // Pops from the front
+        if (mapSize > 0) {
+            this.wordsList[0] => string word;
+            this.wordsList.popFront();
+            this.words.erase(word);
+            this.mapSize--;
+            return word;
+        }
+        return "";
     }
 }
 

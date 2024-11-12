@@ -1124,7 +1124,6 @@ class ChordleGame {
                 lb.letterPost.text() => string letter;
 
                 (letter.charAt(0) - "A".charAt(0)) - ("M".charAt(0) - "A".charAt(0)) => int degree;
-                <<< "Letter", letter,  "Degree", degree >>>;
                 1 => float chance;
                 if (lb.mode() == BlockMode.LETTER_MATCH) 0.5 => chance;
                 if (lb.mode() == BlockMode.NO_MATCH) 0.1 => chance;
