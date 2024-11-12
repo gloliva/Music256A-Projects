@@ -3,26 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Homework 3 Milestone B</title>
+    <title>Music 256A Homework 3</title>
     <style>
         /* Set light blue background for the entire page */
         body {
-            background-color: #e0f7fa; /* Light blue background */
+            background-color: #010101; /* Light blue background */
         }
 
         /* Add a container div with a max width and centering */
         .container {
             width: 70%; /* Set the width to 70% of the screen */
             margin: 0 auto; /* Center the container on the page */
-            background-color: white; /* White background for text area */
-            border: 1px solid black; /* Thin black border */
+            background-color: rgb(205, 205, 205); /* White background for text area */
+            border: 8px solid rgb(0, 134, 29); /* Thin black border */
             border-radius: 15px; /* Curved edges */
             padding: 10px 50px 50px 50px; /* Reduced top padding (10px), and keep 20px for sides and bottom */
         }
 
         /* Set font size to 22px for paragraphs and spans */
         p, span {
-            font-size: 22px;
+            font-size: 20px;
         }
 
         /* Explicitly set font sizes for headers */
@@ -36,6 +36,11 @@
 
         h3 {
             font-size: 26px;
+        }
+
+
+        h4 {
+            font-size: 23px;
         }
 
         /* Center the grid container */
@@ -68,10 +73,68 @@
 <body>
     <div class="container">
         <h1 style="text-align: center;">Chordle (Chuck + Wordle)</h1>
-        <h3 style="text-align: center;"><em>Homework 3 Milestone B</em></h3>
+
+        <h3 style="text-align: center;"><em>Homework 3</em></h3>
         <p>&nbsp;</p>
-        <p><strong>Description</strong></p>
+        <h4>Description</h4>
         <p>Wordle with a musical twist!</p>
+
+        <!-- Embedded video with controls, autoplay, and loop -->
+        <div style="text-align: center;">
+            <video controls autoplay loop muted>
+                <source src="Chordle Final.mp4" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+        </div>
+
+        <!-- Image grid with 2 columns and 2 rows -->
+        <div class="image-grid">
+            <img src="Chordle1.png" alt="Final Image 1">
+            <img src="Chordle2.png" alt="Final Image 2">
+        </div>
+
+        <h4>How To Play</h4>
+        <p>To run `Chordle`, download the appropriate files and run:</p>
+        <blockquote>
+        <p>$ chuck hw3_main.ck</p>
+        </blockquote>
+        <h4>&nbsp;</h4>
+        <h4>Play Game Keys</h4>
+        <p><strong>LETTER KEYS</strong>&nbsp;<strong>(A - Z) </strong><strong>-</strong> Add Letters to the current game.</p>
+        <p><strong>BACKSPACE -</strong> Delete Letter from the current game.</p>
+        <p><strong>ARROW KEYS -&nbsp;</strong>Change active game (left arrow moves to the game to the left, down arrow moves to the game below, etc.).</p>
+        <p><strong>ENTER -&nbsp;</strong>When a game row is filled out, submit the row.</p>
+        <p>&nbsp;</p>
+        <h4>Create Game Keys</h4>
+        <p><strong>Number Keys (1 - 9) -&nbsp;</strong>The first number entered sets the rows. The second number sets the columns.</p>
+        <p><strong>SPACE</strong>&nbsp;<strong>-&nbsp;</strong>Once both the row and column numbers are, create the new game.</p>
+        <p><strong>LEFT-SHIFT + DELETE -&nbsp;</strong>Deletes the last-entered number (col / row).</p>
+        <p>&nbsp;</p>
+        <h4>Movement Keys</h4>
+        <p><strong>LEFT-SHIFT + ARROW KEYS</strong>&nbsp;<strong>-&nbsp;</strong>Move the games around.</p>
+        <p><strong>LEFT-SHIFT + PLUS -&nbsp;</strong>Zoom in.</p>
+        <p><strong>LEFT-SHIFT + MINUS - </strong>Zoom out.</p>
+        <p>&nbsp;</p>
+
+        <h4>Code</h4>
+        <!-- <p style="text-align: center;"><a href="https://ccrma.stanford.edu/~gloliva/256A/HW3/code/"><span style="font-weight: 400;">View code</span></a></p> -->
+        <p><a href="https://github.com/gloliva/Music256A-Projects/tree/master/hw3" target="_blank">View Code on GitHub</a></p>
+        <p>&nbsp;</p>
+
+        <h3><strong>Reflection</strong></h3>
+        <p>Wordle looks remarkably similar to a standard step sequencer (anything with a grid lends itself well to this). I play Wordle almost every day, and during my sequencer research, this similarity led to some interesting questions: what would a word sound like? Could a group of words play together at different speeds? I also wanted to explore polyrhythms, and using words of different lengths&mdash;and having any number of ways to "get" to that word (i.e. the rows of the game)&mdash;seemed like a natural way to achieve pretty complex results with little effort.</p>
+        <p>Given more time, I would want the actual words the player chooses to change aspects of the sequencer, such as timing, timbre, and step algorithms (e.g. using the word "shift" might shift the current row by 1, wrapping around the other side, changing the sequence order). This was actually what I wanted to do from the very beginning, but it proved quite difficult to figure out what words to use for each column/word length (i.e. to rotate the cube, use "rot" for 3 letters, "rots" or "rota" for 4, "rotate" for 6, but what for 5? Also how do we distinguish rotating left vs. right? etc.). I tried to add a little bit of this by highlighting the most frequently used letters and words in the background of the game to give the player some insight into their choices (the falling letters and glowing words, respectively), but unfortunately, it is purely for aesthetic purposes as opposed to adding an extra element to how the sequencer operates.</p>
+        <p>The system design for Chordle is fairly straightforward, here is a subset of the primary classes:</p>
+        <div class="image-grid-container">
+            <div class="image-grid">
+                <img src="HW3ClassDiagram.jpg" alt="Image 1">
+            </div>
+        </div>
+        <p>Thanks to Kunwoo for the great idea of adding melodies to completed games.</p>
+        <p>&nbsp;</p>
+
+        <!-- Milestone B -->
+        <h3 style="text-align: center;"><em>Milestone B</em></h3>
 
         <!-- Embedded video with controls, autoplay, and loop -->
         <div style="text-align: center;">
