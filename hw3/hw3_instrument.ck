@@ -9,6 +9,7 @@ public class FMInstrument {
     FM @ instrument;
     Gain gain;
     Envelope env;
+    Pan2 stereo;
 
     dur attack;
     dur sustain;
@@ -19,12 +20,16 @@ public class FMInstrument {
         initGain => this.gain.gain;
 
         // this.instrument => this.env => this.gain => dac;
-        this.instrument => this.gain => dac;
+        this.instrument => this.gain => this.stereo => dac;
     }
 
     fun void setEnv(dur attack, dur sustain, dur release) {
         attack => this.attack;
         release => this.release;
+    }
+
+    fun void setPan(float pan) {
+        pan => this.stereo.pan;
     }
 
     fun void setFreq(float freq) {

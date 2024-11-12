@@ -815,6 +815,10 @@ class ChordleGame {
     int currPlayerRow[4];
     int currPlayerCol[4];
 
+    // Position in Games grid
+    int colLocation;
+    int rowLocation;
+
     // Winning words
     WordSet wordSet;
     string gameWord;
@@ -889,6 +893,11 @@ class ChordleGame {
 
     fun void setCubePos(float x, float y) {
         this.cube.setCubePos(x, y);
+    }
+
+    fun void setCubeGamePos(int colLocation, int rowLocation) {
+        colLocation => this.colLocation;
+        rowLocation => this.rowLocation;
     }
 
     fun initAudio(SndBuf buffers[]) {
@@ -1148,6 +1157,9 @@ class ChordleGame {
         50::ms => dur release;
         beatLength - attack - release => dur sustain;
         this.instrument.setEnv(attack, sustain, release);
+
+        [-0.8, -0.33, 0.33, 0.8] @=> float panVal[];
+        this.instrument.setPan(panVal[this.colLocation]);
 
         ScaleDegree scaleDegrees[0];
         this.generateMelody(scaleDegrees, grid, sideIdx);
@@ -1416,6 +1428,7 @@ class GameManager {
                         ChordleGame game(set, this.beat, this.wordEvent, instrument, this.scaleManager.majorPentatonic, N, M);
                         game.setActive(0);
                         game.setCubePos(5.5 * this.colPointer, -5.5 * this.rowPointer);  // TODO: update where grid is set
+                        game.setCubeGamePos(this.colPointer, this.rowPointer);
                         game.setTempo(120.);
                         game.initAudio(this.buffers);
                         this.screen.addToScreen(game.cube);
